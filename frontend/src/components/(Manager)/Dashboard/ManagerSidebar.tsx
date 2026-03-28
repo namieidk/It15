@@ -8,13 +8,13 @@ import {
 } from 'lucide-react';
 
 const managerItems = [
-  { name: 'Dashboard', icon: LayoutDashboard, path: '/manager/dashboard' },
-  { name: 'Attendance', icon: Clock, path: '/manager/attendance' },
-  { name: 'Approvals', icon: CheckSquare, path: '/manager/approvals' },
-  { name: 'Messages', icon: MessageSquare, path: '/manager/messages' },
-  { name: 'Evaluation', icon: Target, path: '/manager/evaluation' },
-  { name: 'Reports', icon: BarChart3, path: '/manager/reports' },
-  { name: 'Profile', icon: UserCircle, path: '/manager/profile' },
+  { name: 'Dashboard', icon: LayoutDashboard, path: '/managerDashboard' },
+  { name: 'Attendance', icon: Clock, path: '/managerAttendance' },
+  { name: 'Approvals', icon: CheckSquare, path: '/Approvals' },
+  { name: 'Messages', icon: MessageSquare, path: '/managerMessage' },
+  { name: 'Evaluation', icon: Target, path: '/managerEvaluation' },
+  { name: 'Reports', icon: BarChart3, path: '/managerReports' },
+  { name: 'Profile', icon: UserCircle, path: '/managerProfile' },
 ];
 
 export const ManagerSidebar = () => {

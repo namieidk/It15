@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-// These imports fix the "Cannot find name" errors in your screenshot
 import { 
   Bell, 
   Search, 
@@ -13,9 +12,11 @@ import {
 
 import { Sidebar } from '../../../components/(Employee)/Dashboard/Sidebar';
 import { StatCards } from '../../../components/(Employee)/Dashboard/StatCard';
+import { SessionGuard } from '@/src/components/SessionGuard';
 
 export default function EmployeeDashboard() {
   return (
+    <SessionGuard allowedRoles={['EMPLOYEE']}>
     <main className="h-screen w-full flex bg-[#020617] text-slate-200 overflow-hidden font-sans">
       {/* SIDEBAR */}
       <Sidebar />
@@ -112,5 +113,6 @@ export default function EmployeeDashboard() {
         </div>
       </section>
     </main>
+    </SessionGuard>
   );
 }

@@ -8,14 +8,14 @@ import {
 } from 'lucide-react';
 
 const menuItems = [
-  { name: 'Dashboard', icon: LayoutDashboard, path: '/employee/dashboard' },
-  { name: 'Attendance', icon: Clock, path: '/employee/attendance' },
-  { name: 'Request Leave', icon: FilePlus, path: '/employee/leave-request' },
-  { name: 'Messages', icon: MessageSquare, path: '/employee/messages' },
-  { name: 'Evaluation', icon: Target, path: '/employee/evaluation' },
-  { name: 'Reports', icon: BarChart3, path: '/employee/reports' },
-  { name: 'Payroll', icon: CreditCard, path: '/employee/payroll' },
-  { name: 'Profile', icon: UserCircle, path: '/employee/profile' },
+  { name: 'Dashboard', icon: LayoutDashboard, path: '/Dashboard' },
+  { name: 'Attendance', icon: Clock, path: '/Attendance' },
+  { name: 'Request Leave', icon: FilePlus, path: '/LeaveReq' },
+  { name: 'Messages', icon: MessageSquare, path: '/Message' },
+  { name: 'Evaluation', icon: Target, path: '/Evaluation' },
+  { name: 'Reports', icon: BarChart3, path: '/Reports' },
+  { name: 'Payroll', icon: CreditCard, path: '/Payroll' },
+  { name: 'Profile', icon: UserCircle, path: '/Profile' },
 ];
 
 export const Sidebar = () => {

@@ -7,14 +7,14 @@ import {
 } from 'lucide-react';
 
 const hrMenuItems = [
-  { name: 'Dashboard', icon: LayoutDashboard, path: '/hr/dashboard' },
-  { name: 'Attendance', icon: Clock, path: '/hr/attendance' },
-  { name: 'Approvals', icon: CheckSquare, path: '/hr/approvals' },
-  { name: 'Message', icon: MessageSquare, path: '/hr/message' },
-  { name: 'Applicant List', icon: UserPlus, path: '/hr/applicants' },
-  { name: 'Evaluation', icon: Target, path: '/hr/evaluation' },
-  { name: 'Payroll', icon: CreditCard, path: '/hr/payroll' },
-  { name: 'Reports', icon: BarChart3, path: '/hr/reports' },
+  { name: 'Dashboard', icon: LayoutDashboard, path: '/hrDashboard' },
+  { name: 'Attendance', icon: Clock, path: '/hrAttendance' },
+  { name: 'Approvals', icon: CheckSquare, path: '/hrApproval' },
+  { name: 'Message', icon: MessageSquare, path: '/hrMessage' },
+  { name: 'Applicant List', icon: UserPlus, path: '/Applicants' },
+  { name: 'Evaluation', icon: Target, path: '/hrEvaluate' },
+  { name: 'Payroll', icon: CreditCard, path: '/hrPayroll' },
+  { name: 'Reports', icon: BarChart3, path: '/hrReports' },
 ];
 
 export const HRSidebar = () => {

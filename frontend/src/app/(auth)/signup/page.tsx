@@ -1,5 +1,5 @@
 // src/app/(auth)/signup/page.tsx
-import { LoginBackground } from '../../../components/Login/LoginVisual'; // Reuse the background
+import { LoginBackground } from '../../../components/Login/LoginVisual'; 
 import { SignupHeader } from '../../../components/Signup/SignupHeader';
 import { AdminSignupForm } from '../../../components/Signup/AdminSignupForm';
 import Link from 'next/link';
