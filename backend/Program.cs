@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using YourProject.Data; // ← update to your actual namespace
+using YourProject.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,11 +28,6 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-// ✅ FIX 1: Removed app.UseHttpsRedirection() — it redirects http://localhost calls
-//            away from your API, causing silent 404s from the frontend.
-
-// ✅ FIX 2: UseCors MUST come before UseRouting, otherwise CORS headers are
-//            never added and the browser blocks the request entirely.
 app.UseCors("AllowNextJS");
 
 app.UseRouting();

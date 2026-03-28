@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using YourProject.Data;
 
@@ -11,9 +12,11 @@ using YourProject.Data;
 namespace backend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260328200150_AddAttendanceTable")]
+    partial class AddAttendanceTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -48,12 +51,6 @@ namespace backend.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<double>("OvertimeHours")
-                        .HasColumnType("float");
-
-                    b.Property<double>("RegularHours")
-                        .HasColumnType("float");
-
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -61,9 +58,6 @@ namespace backend.Migrations
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<double>("TotalHoursWorked")
-                        .HasColumnType("float");
 
                     b.HasKey("Id");
 
@@ -93,36 +87,6 @@ namespace backend.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("LoginLogs");
-                });
-
-            modelBuilder.Entity("YourProject.Models.Schedule", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("EmployeeId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<TimeSpan>("ShiftEnd")
-                        .HasColumnType("time");
-
-                    b.Property<TimeSpan>("ShiftStart")
-                        .HasColumnType("time");
-
-                    b.Property<string>("WorkingDays")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Schedules");
                 });
 
             modelBuilder.Entity("YourProject.Models.User", b =>

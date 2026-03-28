@@ -30,17 +30,16 @@ export const LoginForm = () => {
         const role = data.user.role.toUpperCase();
         const name = data.user.name;
         const id = data.user.employeeId;
-        const department = data.user.department || 'General'; // ✅ pull department from API
+        const department = data.user.department || 'General'; 
 
         // Set session cookie
         document.cookie = `session=${JSON.stringify({ role, name })}; path=/; max-age=${30 * 60}`;
 
-        // Store unified user object including department
         const userPayload = {
           name,
           role,
           employeeId: id,
-          department, // ✅ include department
+          department, 
         };
         localStorage.setItem('user', JSON.stringify(userPayload));
 
@@ -70,7 +69,7 @@ export const LoginForm = () => {
       {/* EMPLOYEE ID INPUT */}
       <div className="space-y-2">
         <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 ml-1">
-          Access Credential (ID)
+          Employee ID
         </label>
         <input
           type="text"
@@ -87,10 +86,10 @@ export const LoginForm = () => {
       <div className="space-y-2">
         <div className="flex justify-between items-center px-1">
           <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">
-            Security Phrase
+            Password
           </label>
           <button type="button" className="text-[10px] font-bold text-indigo-500 uppercase tracking-tighter hover:text-indigo-400 transition-colors">
-            Forgot?
+            Forgot Password?
           </button>
         </div>
         <div className="relative">
@@ -131,7 +130,7 @@ export const LoginForm = () => {
         ) : (
           <>
             <ShieldCheck className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            Establish Link
+            Login
           </>
         )}
       </button>

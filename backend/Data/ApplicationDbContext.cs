@@ -10,7 +10,8 @@ namespace YourProject.Data
 
         // This represents the "Users" table
         public DbSet<User> Users { get; set; }
-
         public DbSet<LoginLog> LoginLogs { get; set; }
+        public DbSet<Schedule> Schedules { get; set; }
+        public DbSet<Attendance> Attendance { get; set; }
     }
 }
