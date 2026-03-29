@@ -16,35 +16,28 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowNextJS", policy =>
     {
-        policy.WithOrigins("http://localhost:3000") // Matches your Frontend
+        policy.WithOrigins("http://localhost:3000")
               .AllowAnyMethod()
               .AllowAnyHeader()
-              .AllowCredentials(); // REQUIRED for SignalR
+              .AllowCredentials();
     });
 });
 
 var app = builder.Build();
-
-// --- MIDDLEWARE PIPELINE ---
 
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
-// 1. MUST BE FIRST
+// ✅ CORRECT ORDER: Routing → CORS → Authorization
 app.UseRouting();
-
-// 2. MUST BE AFTER UseRouting AND BEFORE UseAuthorization/MapHub
 app.UseCors("AllowNextJS");
-
 app.UseAuthorization();
 
-// 3. MAP YOUR ENDPOINTS
 app.MapControllers();
 app.MapHub<AttendanceHub>("/hubs/attendance");
 
-// Optional: Keep or remove weather forecast
 app.MapGet("/weatherforecast", () => {
     var summaries = new[] { "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching" };
     return Enumerable.Range(1, 5).Select(index =>
@@ -57,7 +50,6 @@ app.MapGet("/weatherforecast", () => {
 
 app.Run();
 
-// Record stays at the bottom
 record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {
     public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
