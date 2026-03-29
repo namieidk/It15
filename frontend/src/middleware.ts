@@ -11,7 +11,7 @@ const ROLE_ROUTES: Record<string, string[]> = {
     '/managerMessage', '/managerProfile', '/managerReports', '/Approvals'
   ],
   HR: [
-    '/hrDashboard', '/hrAttendance', '/hrApproval', '/hrEvaluate',
+    '/hrDashboard', '/hrAttendance', '/hrSchedule', '/hrApproval', '/hrEvaluate',
     '/hrMessage', '/hrPayroll', '/hrReports', '/Applicants'
   ],
   EMPLOYEE: [
@@ -63,7 +63,7 @@ export const config = {
     '/managerDashboard/:path*', '/managerAttendance/:path*', '/managerEvaluation/:path*',
     '/managerMessage/:path*', '/managerProfile/:path*', '/managerReports/:path*',
     '/Approvals/:path*',
-    '/hrDashboard/:path*', '/hrAttendance/:path*', '/hrApproval/:path*',
+    '/hrDashboard/:path*', '/hrAttendance/:path*', '/hrSchedule/:path*', '/hrApproval/:path*',
     '/hrEvaluate/:path*', '/hrMessage/:path*', '/hrPayroll/:path*',
     '/hrReports/:path*', '/Applicants/:path*',
     '/Dashboard/:path*', '/Attendance/:path*', '/Evaluation/:path*',

@@ -1,64 +1,91 @@
 import { useEffect, useRef, useState } from 'react';
 import * as signalR from '@microsoft/signalr';
-import { AttendanceRecord } from '../components/(Manager)/Attendance/ManagerAttendance';
 
-interface LateNotification {
+// 1. Define strict interfaces for the data models
+interface BaseRecord {
+  id: string;
+  name: string;
+}
+
+export interface AttendanceNotification {
   employeeId: string;
   name: string;
   time: string;
+  dept: string; // Required for HR, can be empty string for others
 }
 
-interface UseAttendanceSignalRProps {
+interface UseAttendanceSignalRProps<T> {
   department: string;
-  onNewClockIn: (record: AttendanceRecord) => void;
-  onLateNotification: (notification: LateNotification) => void;
+  role?: 'HR' | 'MANAGER' | 'EMPLOYEE';
+  onNewClockIn: (record: T) => void;
+  // ✅ Replaced 'any' with a concrete interface
+  onLateNotification: (notification: AttendanceNotification) => void;
 }
 
-export function useAttendanceSignalR({
+export function useAttendanceSignalR<T extends BaseRecord>({
   department,
+  role = 'MANAGER',
   onNewClockIn,
   onLateNotification,
-}: UseAttendanceSignalRProps) {
+}: UseAttendanceSignalRProps<T>) {
   const connectionRef = useRef<signalR.HubConnection | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    if (!department) return;
+    let isMounted = true;
+    
+    const url = `http://localhost:5076/hubs/attendance?department=${encodeURIComponent(department)}&role=${role}`;
 
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl('http://localhost:5076/hubs/attendance')
+      .withUrl(url, {
+        skipNegotiation: true,
+        transport: signalR.HttpTransportType.WebSockets
+      })
       .withAutomaticReconnect()
-      .configureLogging(signalR.LogLevel.Warning)
+      .configureLogging(signalR.LogLevel.None)
       .build();
 
-    // ✅ Listen for new clock-ins
-    connection.on('NewClockIn', (record: AttendanceRecord) => {
-      onNewClockIn(record);
+    // ✅ Strongly typed listener for NewClockIn
+    connection.on('NewClockIn', (record: T) => {
+      if (isMounted) onNewClockIn(record);
     });
 
-    // ✅ Listen for late notifications
-    connection.on('LateNotification', (notification: LateNotification) => {
-      onLateNotification(notification);
+    // ✅ Strongly typed listener for LateNotification
+    connection.on('LateNotification', (notification: AttendanceNotification) => {
+      if (isMounted) onLateNotification(notification);
     });
 
-    connection
-      .start()
-      .then(async () => {
-        setIsConnected(true);
-        // ✅ Join the department group to only receive relevant updates
-        await connection.invoke('JoinDepartmentGroup', department);
-        console.log(`[SignalR] Connected and joined group: ${department}`);
-      })
-      .catch((err) => console.error('[SignalR] Connection error:', err));
+    const startConnection = async () => {
+      try {
+        await connection.start();
+        if (isMounted) {
+          setIsConnected(true);
+          console.log(`[SignalR] Linked as ${role}`);
+        }
+      } catch (err) {
+        if (isMounted) console.error("[SignalR] Connection Failed:", err);
+      }
+    };
 
+    startConnection();
     connectionRef.current = connection;
 
     return () => {
-      connection.invoke('LeaveDepartmentGroup', department).catch(() => {});
-      connection.stop();
-      setIsConnected(false);
+      isMounted = false;
+      if (connectionRef.current) {
+        const conn = connectionRef.current;
+        connectionRef.current = null;
+        
+        conn.off('NewClockIn');
+        conn.off('LateNotification');
+        
+        if (conn.state !== signalR.HubConnectionState.Disconnected) {
+          conn.stop().catch(() => {});
+        }
+        setIsConnected(false);
+      }
     };
-  }, [department]);
+  }, [department, role, onNewClockIn, onLateNotification]);
 
   return { isConnected };
 }
