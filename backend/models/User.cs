@@ -21,9 +21,15 @@ namespace YourProject.Models
         [Required]
         public string Role { get; set; } = "ADMIN"; 
 
-        // ✅ NEW FIELD ADDED
         [Required, StringLength(100)]
         public string Department { get; set; } = "ADMINISTRATION";
+        public string Email { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
+        
+        // Defaulting to your office location
+        public string Workstation { get; set; } = "FLOOR 1 // MAIN OFFICE";
+        public string? ProfileImage { get; set; }
+        public string? BannerImage { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }

@@ -1,152 +1,219 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 import { ManagerSidebar } from '../../../components/(Manager)/Dashboard/ManagerSidebar';
-import { 
-  User, 
-  ShieldCheck, 
-  Award, 
-  Settings, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Briefcase,
-  Lock,
-  ChevronRight,
-  Fingerprint
-} from 'lucide-react';
+import { ManagerProfileUI, UserData, EditForm } from '../../../components/(Manager)/Profile/Manageprofile';
+
+const API_BASE = "http://localhost:5076/api/user";
+
+// Define a strict interface for the Cloudinary Response
+interface CloudinaryResponse {
+  secure_url: string;
+}
+
+// Define the interface for the update payload to match your C# DTO
+interface ProfileUpdatePayload extends EditForm {
+  employeeId: string;
+  profileImage: string;
+  bannerImage: string;
+}
 
 export default function ManagerProfilePage() {
-  return (
-    <main className="h-screen w-full flex bg-[#020617] text-slate-200 overflow-hidden font-sans uppercase">
-      {/* GLOBAL MANAGER SIDEBAR */}
-      <ManagerSidebar />
+  const [data, setData] = useState<UserData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState<boolean>(false);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<EditForm>({ 
+    email: '', 
+    phone: '', 
+    workstation: '' 
+  });
+  
+  const avatarRef = useRef<HTMLInputElement>(null);
+  const bannerRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
-      <section className="flex-1 flex flex-col overflow-y-auto bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-blue-900/10 via-[#020617] to-[#020617]">
+  // ── LOAD PROFILE ────────────────────────────────────────────────────────
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const userJson = localStorage.getItem('user');
+        if (!userJson) {
+          setError("SESSION EXPIRED");
+          return;
+        }
+
+        const session = JSON.parse(userJson) as { employeeId: string };
+        const employeeId = session.employeeId;
+
+        const res = await fetch(`${API_BASE}/profile/${employeeId}`);
+        if (!res.ok) throw new Error("FETCH_ERROR");
         
-        {/* HEADER / COVER AREA */}
-        <div className="h-64 bg-slate-900/50 border-b border-white/5 relative overflow-hidden">
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
-          <div className="absolute bottom-0 left-12 translate-y-1/2 flex items-end gap-8">
-            <div className="w-40 h-40 rounded-[3rem] bg-blue-600 border-[8px] border-[#020617] flex items-center justify-center shadow-2xl relative group">
-              <User className="w-20 h-20 text-white" />
-              <div className="absolute inset-0 bg-black/40 rounded-[3rem] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                <Settings className="w-8 h-8 text-white" />
-              </div>
-            </div>
-            <div className="mb-6">
-              <div className="flex items-center gap-3 mb-1">
-                <h1 className="text-4xl font-black text-white tracking-tighter">RICHARD STARK</h1>
-                <div className="px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded-lg flex items-center gap-2">
-                  <ShieldCheck className="w-3 h-3 text-blue-400" />
-                  <span className="text-[8px] font-black text-blue-400 tracking-widest uppercase">LEVEL 4 ACCESS</span>
-                </div>
-              </div>
-              <p className="text-sm font-black text-slate-500 tracking-[0.3em]">OPERATIONS MANAGER // SITE DELTA</p>
-            </div>
-          </div>
-        </div>
+        const result: UserData = await res.json();
+        
+        setData(result);
+        setEditForm({ 
+          email: result.email, 
+          phone: result.phone, 
+          workstation: result.workstation 
+        });
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError("UNKNOWN ERROR");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadProfile();
+  }, []);
 
-        <div className="p-12 mt-20 max-w-[1400px] w-full mx-auto grid grid-cols-1 lg:grid-cols-3 gap-10">
-          
-          {/* LEFT COLUMN: OFFICIAL DATA */}
-          <div className="space-y-8">
-            <div className="bg-slate-900/40 border border-white/5 p-8 rounded-[2.5rem] backdrop-blur-3xl">
-              <h3 className="text-[10px] font-black text-blue-500 tracking-[0.4em] mb-8 flex items-center gap-2">
-                <Fingerprint className="w-4 h-4" /> BIOMETRIC IDENTITY
-              </h3>
-              <div className="space-y-6">
-                {[
-                  { label: 'EMPLOYEE ID', val: 'AX-MGR-001', icon: Lock },
-                  { label: 'EMAIL ADDRESS', val: 'R.STARK@AXIOM.CORE', icon: Mail },
-                  { label: 'DIRECT LINE', val: '+63 917 555 0101', icon: Phone },
-                  { label: 'WORKSTATION', val: 'FLOOR 12 // SECTOR B', icon: MapPin },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-start gap-4">
-                    <div className="p-2 bg-white/5 rounded-lg text-slate-600">
-                      <item.icon className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-[8px] font-black text-slate-600 tracking-widest">{item.label}</p>
-                      <p className="text-[11px] font-black text-white tracking-tight">{item.val}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+  // ── UPLOAD LOGIC ────────────────────────────────────────────────────────
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'banner') => {
+    const file = e.target.files?.[0];
+    if (!file || !data) return;
 
-            <div className="bg-blue-600/10 border border-blue-600/20 p-8 rounded-[2.5rem]">
-               <div className="flex items-center gap-4 mb-4">
-                  <Award className="w-6 h-6 text-blue-400" />
-                  <h4 className="text-xs font-black text-white tracking-widest uppercase">Tenure Excellence</h4>
-               </div>
-               <p className="text-[10px] font-bold text-blue-400 tracking-widest leading-relaxed uppercase">
-                 SERVING SINCE 2018. CERTIFIED SIX SIGMA BLACK BELT & ISO 27001 COMPLIANCE LEAD.
-               </p>
-            </div>
-          </div>
+    setSaving(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || '');
 
-          {/* RIGHT COLUMN: LEADERSHIP METRICS */}
-          <div className="lg:col-span-2 space-y-8">
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {[
-                { label: 'TEAM SIZE', val: '42 AGENTS', sub: '3 SHIFT LEADS' },
-                { label: 'DEPT COMPLIANCE', val: '99.2%', sub: 'TOP 5% IN REGION' },
-              ].map((stat, i) => (
-                <div key={i} className="bg-slate-900/20 border border-white/5 p-8 rounded-[3rem] hover:border-blue-500/30 transition-all">
-                  <p className="text-[9px] font-black text-slate-500 tracking-[0.4em] mb-2">{stat.label}</p>
-                  <h3 className="text-3xl font-black text-white tracking-tighter mb-1">{stat.val}</h3>
-                  <p className="text-[9px] font-black text-blue-500 tracking-widest">{stat.sub}</p>
-                </div>
-              ))}
-            </div>
+    try {
+      const cloudRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`, 
+        { method: 'POST', body: formData }
+      );
+      
+      const cloudData: CloudinaryResponse = await cloudRes.json();
+      let secureUrl = cloudData.secure_url;
 
-            <div className="bg-slate-900/40 border border-white/5 rounded-[3.5rem] overflow-hidden">
-               <div className="px-10 py-8 border-b border-white/5 flex justify-between items-center bg-white/5">
-                  <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-white">Direct Reports // Tier 1</h3>
-                  <Briefcase className="w-5 h-5 text-slate-500" />
-               </div>
-               <div className="divide-y divide-white/5">
-                  {[
-                    { name: 'ALEXANDER WRIGHT', role: 'SHIFT LEAD', status: 'ON-SHIFT' },
-                    { name: 'SARAH JENKINS', role: 'QUALITY ANALYST', status: 'ON-SHIFT' },
-                    { name: 'MARCUS VANE', role: 'TRAINER', status: 'OFF-SHIFT' },
-                  ].map((report, i) => (
-                    <div key={i} className="px-10 py-6 flex justify-between items-center group cursor-pointer hover:bg-white/5 transition-all">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-[10px] font-black text-slate-500">
-                          {report.name[0]}{report.name.split(' ')[1][0]}
-                        </div>
-                        <div>
-                          <p className="text-xs font-black text-white tracking-tight">{report.name}</p>
-                          <p className="text-[9px] font-bold text-slate-500 tracking-widest">{report.role}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-6">
-                        <span className={`text-[8px] font-black tracking-widest ${report.status === 'ON-SHIFT' ? 'text-emerald-500' : 'text-slate-600'}`}>
-                          {report.status}
-                        </span>
-                        <ChevronRight className="w-4 h-4 text-slate-800 group-hover:text-blue-500 transition-colors" />
-                      </div>
-                    </div>
-                  ))}
-               </div>
-            </div>
+      // Transformation for Landscape Banner
+      if (type === 'banner') {
+        secureUrl = secureUrl.replace('/upload/', '/upload/c_fill,ar_3:1,g_auto,w_1800/');
+      }
 
-            <div className="flex justify-end gap-4">
-              <button className="px-10 py-5 bg-white/5 border border-white/10 rounded-2xl font-black text-[10px] tracking-[0.3em] hover:bg-white/10 transition-all uppercase">
-                Download Resume
-              </button>
-              <button className="px-10 py-5 bg-blue-600 text-white rounded-2xl font-black text-[10px] tracking-[0.3em] hover:bg-blue-500 transition-all uppercase shadow-xl shadow-blue-600/20">
-                Edit Professional Profile
-              </button>
-            </div>
+      const payload: ProfileUpdatePayload = {
+        employeeId: data.employeeId,
+        email: data.email,
+        phone: data.phone,
+        workstation: data.workstation,
+        profileImage: type === 'avatar' ? secureUrl : (data.profileImage || ""),
+        bannerImage: type === 'banner' ? secureUrl : (data.bannerImage || "")
+      };
 
-          </div>
+      const res = await fetch(`${API_BASE}/update-profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-        </div>
-      </section>
+      if (res.ok) {
+        setData(prev => prev ? { ...prev, ...payload } : null);
+      }
+    } catch (err: unknown) {
+      console.error("Upload error:", err);
+      alert("BIO-SYNC FAILED");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── SAVE MODAL DATA ─────────────────────────────────────────────────────
+  const handleSave = async () => {
+    if (!data) return;
+    setSaving(true);
+    setSaveError(null);
+
+    try {
+      const payload: ProfileUpdatePayload = {
+        ...editForm,
+        employeeId: data.employeeId,
+        profileImage: data.profileImage || "",
+        bannerImage: data.bannerImage || ""
+      };
+
+      const res = await fetch(`${API_BASE}/update-profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error("Update failed on server");
+
+      setData(prev => prev ? { ...prev, ...editForm } : null);
+      setShowModal(false);
+    } catch (err: unknown) {
+      setSaveError(err instanceof Error ? err.message : "SYNC ERROR");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── RENDER STATES ───────────────────────────────────────────────────────
+  if (loading || !data) {
+    return (
+      <div className="h-screen bg-[#020617] flex flex-col items-center justify-center">
+        <Loader2 className="animate-spin text-blue-500 w-10 h-10" />
+        <p className="text-blue-500 font-black mt-4 text-[10px] tracking-[0.5em] uppercase">
+          Initializing Terminal...
+        </p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-screen bg-[#020617] flex flex-col items-center justify-center text-red-500 uppercase">
+        <p className="font-black tracking-widest">{error}</p>
+        <button 
+          onClick={() => router.push('/')} 
+          className="mt-4 border border-red-500/50 px-6 py-2 text-[10px]"
+        >
+          Return to Login
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <main className="h-screen w-full flex bg-[#020617] overflow-hidden">
+      <ManagerSidebar />
+      
+      {/* Hidden inputs with strict type handlers */}
+      <input 
+        type="file" 
+        ref={avatarRef} 
+        className="hidden" 
+        accept="image/*" 
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleUpload(e, 'avatar')} 
+      />
+      <input 
+        type="file" 
+        ref={bannerRef} 
+        className="hidden" 
+        accept="image/*" 
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleUpload(e, 'banner')} 
+      />
+
+      <ManagerProfileUI
+        data={data}
+        showModal={showModal}
+        saving={saving}
+        saveError={saveError}
+        editForm={editForm}
+        onOpenModal={() => setShowModal(true)}
+        onCloseModal={() => setShowModal(false)}
+        onSave={handleSave}
+        onEditChange={(f: keyof EditForm, v: string) => setEditForm(p => ({ ...p, [f]: v }))}
+        onAvatarClick={() => avatarRef.current?.click()}
+        onBannerClick={() => bannerRef.current?.click()}
+      />
     </main>
   );
 }
