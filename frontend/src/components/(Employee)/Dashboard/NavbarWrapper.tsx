@@ -8,6 +8,6 @@ const Navbar = dynamic(
   { ssr: false }
 );
 
-export function NavbarWrapper() {  // ✅ named export, not default
+export function NavbarWrapper() {  
   return <Navbar />;
 }

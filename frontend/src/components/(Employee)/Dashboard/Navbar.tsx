@@ -41,13 +41,7 @@ export const Navbar = () => {
 </h1>
         </div>
 
-        <div className="hidden xl:flex items-center bg-white/5 border border-white/5 px-4 py-2 rounded-xl gap-3">
-          <Search className="w-4 h-4 text-slate-500" />
-          <input
-            className="bg-transparent outline-none text-xs font-bold placeholder:text-slate-600 w-48 text-white uppercase"
-            placeholder="Search metrics..."
-          />
-        </div>
+        
       </div>
 
       <div className="flex items-center gap-6">
@@ -65,11 +59,7 @@ export const Navbar = () => {
               {userData.role}
             </p>
           </div>
-          <div className="h-11 w-11 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-600/20 border border-white/10 group cursor-pointer overflow-hidden">
-            <span className="text-white font-black text-xs group-hover:scale-110 transition-transform uppercase">
-              {userData.initials}
-            </span>
-          </div>
+          
         </div>
       </div>
     </header>
