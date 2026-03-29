@@ -16,5 +16,8 @@ namespace YourProject.Data
 
         public DbSet<Employee> Employee { get; set; }
         public DbSet<LeaveRequest> LeaveReq { get; set; }
+
+        public DbSet<Evaluation> Evaluations { get; set; }
+        public DbSet<PeerFeedback> PeerFeedbacks { get; set; }
     }
 }
