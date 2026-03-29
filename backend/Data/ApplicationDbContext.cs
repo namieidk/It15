@@ -13,5 +13,8 @@ namespace YourProject.Data
         public DbSet<LoginLog> LoginLogs { get; set; }
         public DbSet<Schedule> Schedules { get; set; }
         public DbSet<Attendance> Attendance { get; set; }
+
+        public DbSet<Employee> Employee { get; set; }
+        public DbSet<LeaveRequest> LeaveReq { get; set; }
     }
 }
