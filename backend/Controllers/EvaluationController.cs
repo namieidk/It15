@@ -16,41 +16,53 @@ namespace YourProject.Controllers
             _context = context;
         }
 
-        // GET /api/Evaluation/agents?department=ADMINISTRATION&excludeId=123456
         [HttpGet("agents")]
         public async Task<IActionResult> GetAgents(
             [FromQuery] string? department,
-            [FromQuery] string? excludeId)
+            [FromQuery] string? excludeId,
+            [FromQuery] string viewerRole = "MANAGER")
         {
             try
             {
                 var query = _context.Users.AsQueryable();
 
+                // 1. Base Role Filtering
+                if (viewerRole.ToUpper() == "HR")
+                {
+                    // 🛡️ HR Logic: Can see Managers and Employees ONLY.
+                    // This automatically hides ADMINS and the HR themselves.
+                    query = query.Where(u => u.Role.ToUpper() == "MANAGER" || u.Role.ToUpper() == "EMPLOYEE");
+                }
+                else
+                {
+                    // 🛡️ Manager Logic: Can ONLY see Employees.
+                    query = query.Where(u => u.Role.ToUpper() == "EMPLOYEE");
+                }
+
+                // 2. Department Filtering (Optional for HR, usually required for Managers)
                 if (!string.IsNullOrWhiteSpace(department))
                 {
                     var deptUpper = department.Trim().ToUpper();
                     query = query.Where(u => u.Department.ToUpper() == deptUpper);
                 }
 
+                // 3. Self-Exclusion Safety 
                 if (!string.IsNullOrWhiteSpace(excludeId))
                 {
-                    query = query.Where(u => u.EmployeeId.ToString() != excludeId.Trim());
+                    query = query.Where(u => u.EmployeeId != excludeId.Trim());
                 }
-
-                // Only show non-manager roles
-                query = query.Where(u => u.Role.ToUpper() != "MANAGER");
 
                 var agents = await query
                     .Select(u => new {
-                        id         = u.EmployeeId.ToString(),
-                        name       = u.Name,
-                        role       = u.Role,
-                        department = u.Department,
+                        id         = u.EmployeeId,
+                        name       = u.Name.ToUpper(),
+                        role       = u.Role.ToUpper(),
+                        department = u.Department.ToUpper(),
                         peerScore  = _context.PeerFeedbacks
-                            .Where(f => f.TargetEmployeeId == u.EmployeeId.ToString())
+                            .Where(f => f.TargetEmployeeId == u.EmployeeId)
                             .Any()
                                 ? _context.PeerFeedbacks
-                                    .Where(f => f.TargetEmployeeId == u.EmployeeId.ToString())
+                                    .Where(f => f.TargetEmployeeId == u.EmployeeId)
                                     .Average(f => f.Score).ToString("F1")
                                 : "0.0"
                     })
@@ -64,7 +76,6 @@ namespace YourProject.Controllers
             }
         }
 
-        // GET /api/Evaluation/peer-results/{employeeId}
         [HttpGet("peer-results/{employeeId}")]
         public async Task<IActionResult> GetPeerResults(string employeeId)
         {
@@ -87,22 +98,15 @@ namespace YourProject.Controllers
             }
         }
 
-        // POST /api/Evaluation/submit
         [HttpPost("submit")]
         public async Task<IActionResult> SubmitEvaluation([FromBody] EvaluationSubmitModel model)
         {
             try
             {
-                if (!int.TryParse(model.TargetEmployeeId, out int targetIdInt))
-                    return BadRequest(new { message = "Target ID must be numeric." });
-
-                if (!int.TryParse(model.EvaluatorId, out int evaluatorIdInt))
-                    return BadRequest(new { message = "Evaluator ID must be numeric." });
-
                 var evaluation = new Evaluation
                 {
-                    TargetEmployeeId = targetIdInt,
-                    EvaluatorId      = evaluatorIdInt,
+                    TargetEmployeeId = int.Parse(model.TargetEmployeeId),
+                    EvaluatorId      = int.Parse(model.EvaluatorId),
                     Score            = model.Score,
                     Comments         = model.Comments ?? "",
                     DateSubmitted    = DateTime.Now
