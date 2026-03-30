@@ -23,5 +23,7 @@ namespace YourProject.Data
         public DbSet<Payroll> Payroll { get; set; }
         public DbSet<PayPeriod> PayPeriods { get; set; }
         public DbSet<Payslip> Payslips { get; set; }
+
+        public DbSet<SystemSettings> SystemSettings { get; set; }
     }
 }

@@ -11,7 +11,6 @@ export default function HRAttendancePage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [notifications, setNotifications] = useState<AttendanceNotification[]>([]);
   
-  // ✅ Updated to match the UI's required HRFilterState
   const [filters, setFilters] = useState<HRFilterState>({ 
     status: 'ALL', 
     department: 'ALL',

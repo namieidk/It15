@@ -17,7 +17,7 @@ export default function SignupPage() {
         <div className="mt-8 pt-6 border-t border-white/5 w-full text-center">
           <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
             Already have clearance?{' '}
-            <Link href="/login" className="text-emerald-500 hover:text-emerald-300 transition">
+            <Link href="/login" className="text-indigo-500 hover:text-emerald-300 transition">
               Log In
             </Link>
           </p>

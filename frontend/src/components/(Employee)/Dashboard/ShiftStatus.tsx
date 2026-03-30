@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { ShieldCheck, LogOut, Loader2, Clock } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Loader2 } from 'lucide-react';
 
 export const ShiftStatus = () => {
   const [time, setTime] = useState('--:--:--');
@@ -13,39 +13,34 @@ export const ShiftStatus = () => {
     const timer = setInterval(() => {
       setTime(new Date().toLocaleTimeString('en-GB', { hour12: false }));
     }, 1000);
-    
-    const stored = localStorage.getItem('user');
-    if (stored) {
-      const { employeeId } = JSON.parse(stored);
-      fetchStats(employeeId);
-    }
-
     return () => clearInterval(timer);
   }, []);
 
-  const fetchStats = async (empId: string) => {
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      const { employeeId } = JSON.parse(storedUser);
+      fetchStats(employeeId);
+      const savedStatus = localStorage.getItem(`isClockedIn_${employeeId}`);
+      if (savedStatus === 'true') setIsClockedIn(true);
+    }
+  }, []);
+
+  const fetchStats = useCallback(async (empId: string) => {
     try {
       const response = await fetch(`http://localhost:5076/api/attendance/weekly-summary/${empId}`);
-      
-      // CRITICAL SAFETY CHECK: Prevent "Unexpected end of JSON" crash
-      if (!response.ok) {
-        console.warn(`Stat fetch failed with status: ${response.status}. Verify endpoint exists.`);
-        return; 
+      if (response.ok) {
+        const data = await response.json();
+        setStats({ reg: data.totalRegular || 0, ot: data.totalOT || 0 });
       }
-
-      const data = await response.json();
-      setStats({ reg: data.totalRegular, ot: data.totalOT });
-    } catch (err) {
-      console.error("Connection error:", err);
-    }
-  };
+    } catch (err) { console.error(err); }
+  }, []);
 
   const handleToggleShift = async () => {
     setIsLoading(true);
     const stored = localStorage.getItem('user');
     if (!stored) return;
     const { employeeId } = JSON.parse(stored);
-
     const endpoint = isClockedIn ? 'clockout' : 'clockin';
     
     try {
@@ -56,46 +51,40 @@ export const ShiftStatus = () => {
       });
 
       if (res.ok) {
-        setIsClockedIn(!isClockedIn);
-        fetchStats(employeeId); // Refresh stats
-      } else {
-        const errorData = await res.json();
-        alert(errorData.message || "Action failed");
+        const newStatus = !isClockedIn;
+        setIsClockedIn(newStatus);
+        localStorage.setItem(`isClockedIn_${employeeId}`, String(newStatus));
+        fetchStats(employeeId); 
       }
-    } catch (err) {
-      alert("Backend is unreachable.");
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (err) { alert("Backend unreachable"); } 
+    finally { setIsLoading(false); }
   };
 
   return (
-    <div className="bg-indigo-950/40 p-8 rounded-[2.5rem] border border-indigo-500/10 backdrop-blur-xl">
+    <div className="bg-indigo-950/40 p-8 rounded-[2.5rem] border border-indigo-500/10 backdrop-blur-xl uppercase italic font-black">
       <div className="text-center mb-6">
-        <p className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.4em] mb-2">Current System Time</p>
-        <div className="text-4xl font-mono font-black text-white">{time}</div>
+        <p className="text-[9px] text-indigo-400 tracking-[0.4em] mb-2">System Time</p>
+        <div className="text-4xl text-white font-mono tracking-tighter">{time}</div>
       </div>
 
       <button 
         onClick={handleToggleShift}
         disabled={isLoading}
-        className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${
-          isClockedIn 
-            ? 'bg-slate-900 text-white hover:bg-black border border-white/5' 
-            : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-500/20'
+        className={`w-full py-5 rounded-2xl text-[10px] tracking-[0.2em] transition-all active:scale-95 ${
+          isClockedIn ? 'bg-red-600 text-white hover:bg-red-500 shadow-lg shadow-red-600/20' : 'bg-indigo-600 text-white hover:bg-indigo-500'
         }`}
       >
-        {isLoading ? <Loader2 className="animate-spin w-4 h-4 mx-auto" /> : isClockedIn ? "End Shift" : "Begin Shift"}
+        {isLoading ? <Loader2 className="animate-spin w-4 h-4 mx-auto" /> : (isClockedIn ? "TERMINATE SHIFT" : "BEGIN SHIFT")}
       </button>
 
       <div className="mt-8 grid grid-cols-2 gap-4">
-        <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-          <p className="text-[8px] font-bold text-slate-500 uppercase">Regular</p>
-          <p className="text-lg font-black text-indigo-300">{stats.reg}h</p>
+        <div className="bg-white/5 p-5 rounded-2xl border border-white/5">
+          <p className="text-[8px] text-slate-500 tracking-widest mb-1">Regular</p>
+          <p className="text-xl text-indigo-400">{stats.reg}H</p>
         </div>
-        <div className="bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/10">
-          <p className="text-[8px] font-bold text-emerald-500/50 uppercase">Overtime</p>
-          <p className="text-lg font-black text-emerald-400">+{stats.ot}h</p>
+        <div className="bg-emerald-500/5 p-5 rounded-2xl border border-emerald-500/10">
+          <p className="text-[8px] text-emerald-500/50 tracking-widest mb-1">Overtime</p>
+          <p className="text-xl text-emerald-400">+{stats.ot}H</p>
         </div>
       </div>
     </div>

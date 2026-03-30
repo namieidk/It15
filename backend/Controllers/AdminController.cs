@@ -17,7 +17,71 @@ namespace YourProject.Controllers
             _context = context;
         }
 
-        // --- 1. FETCH ALL ACCOUNTS ---
+        // --- 1. SYSTEM SETTINGS (GET) ---
+        // Route changed to syssetting as requested
+        [HttpGet("syssetting")]
+        public async Task<IActionResult> GetSettings()
+        {
+            try 
+            {
+                var settings = await _context.SystemSettings.FirstOrDefaultAsync();
+
+                if (settings == null)
+                {
+                    // FIX: Do NOT set "Id = 1". Let SQL Server assign the ID automatically.
+                    settings = new SystemSettings 
+                    { 
+                        SessionTimeout = 30, 
+                        PasswordExpiry = 90, 
+                        MfaRequired = true,
+                        AlertCritical = true,
+                        AlertLogins = false,
+                        AlertExports = true,
+                        StorageUsage = 84
+                    };
+                    _context.SystemSettings.Add(settings);
+                    await _context.SaveChangesAsync();
+                }
+
+                return Ok(settings);
+            }
+            catch (Exception ex)
+            {
+                // Returns the inner exception details to help debug DB permission issues
+                return StatusCode(500, new { 
+                    message = "DATABASE_SYNC_ERROR", 
+                    details = ex.InnerException?.Message ?? ex.Message 
+                });
+            }
+        }
+
+        // --- 2. SYSTEM SETTINGS (UPDATE) ---
+        [HttpPut("syssetting")]
+        public async Task<IActionResult> UpdateSettings([FromBody] SystemSettings model)
+        {
+            try 
+            {
+                var settings = await _context.SystemSettings.FirstOrDefaultAsync();
+                if (settings == null) return NotFound(new { message = "SETTINGS_NOT_FOUND" });
+
+                settings.SessionTimeout = model.SessionTimeout;
+                settings.PasswordExpiry = model.PasswordExpiry;
+                settings.MfaRequired    = model.MfaRequired;
+                settings.AlertCritical  = model.AlertCritical;
+                settings.AlertLogins    = model.AlertLogins;
+                settings.AlertExports   = model.AlertExports;
+                settings.StorageUsage   = model.StorageUsage;
+
+                await _context.SaveChangesAsync();
+                return Ok(settings);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "UPDATE_FAILURE", details = ex.Message });
+            }
+        }
+
+        // --- 3. FETCH ALL ACCOUNTS ---
         [HttpGet("accounts")]
         public async Task<IActionResult> GetAllAccounts()
         {
@@ -35,23 +99,19 @@ namespace YourProject.Controllers
             return Ok(users);
         }
 
-        // --- 2. FETCH LOGIN AUDIT LOGS (UPDATED FOR STABILITY) ---
+        // --- 4. FETCH LOGIN AUDIT LOGS ---
         [HttpGet("login-logs")]
         public async Task<IActionResult> GetLoginLogs()
         {
             try
             {
-                // We use a manual projection to handle "Unknown" users gracefully
-                // This prevents the "Backend Error" when an ID doesn't match the Users table
                 var logs = await _context.LoginLogs
-                    .Select(log => new
-                    {
+                    .Select(log => new {
                         log.Id,
                         log.EmployeeId,
                         log.IpAddress,
                         log.Status,
                         log.Timestamp,
-                        // Sub-query to get user info if it exists
                         UserDetail = _context.Users
                             .Where(u => u.EmployeeId == log.EmployeeId)
                             .Select(u => new { u.Name, u.Role })
@@ -60,10 +120,8 @@ namespace YourProject.Controllers
                     .OrderByDescending(l => l.Timestamp)
                     .ToListAsync();
 
-                // Format the data for the Indigo Frontend
                 var result = logs.Select(l => new {
                     id = l.Id,
-                    // If UserDetail is null, label as UNKNOWN so the UI can highlight it
                     user = l.UserDetail?.Name ?? $"UNKNOWN [{l.EmployeeId}]",
                     role = l.UserDetail?.Role ?? "UNAUTHORIZED_ACTOR",
                     ipAddress = l.IpAddress == "::1" ? "127.0.0.1" : l.IpAddress,
@@ -76,11 +134,11 @@ namespace YourProject.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "KERNEL_LOG_FETCH_FAILURE: " + ex.Message });
+                return StatusCode(500, new { message = "KERNEL_LOG_FETCH_FAILURE", details = ex.Message });
             }
         }
 
-        // --- 3. PROVISION ACCOUNT ---
+        // --- 5. PROVISION ACCOUNT ---
         [HttpPost("provision")]
         public async Task<IActionResult> ProvisionAccount([FromBody] UserRegistrationDto model)
         {
@@ -92,8 +150,7 @@ namespace YourProject.Controllers
             if (await _context.Users.AnyAsync(u => u.EmployeeId == cleanId))
                 return BadRequest(new { message = "EMPLOYEE ID ALREADY REGISTERED." });
 
-            var user = new User
-            {
+            var user = new User {
                 Name         = model.Name.Trim().ToUpper(),
                 EmployeeId   = cleanId,
                 Role         = model.Role.Trim().ToUpper(),
@@ -108,7 +165,7 @@ namespace YourProject.Controllers
             return Ok(new { message = "PROVISIONED" });
         }
 
-        // --- 4. UPDATE ACCOUNT ---
+        // --- 6. UPDATE ACCOUNT ---
         [HttpPut("update-account/{id}")]
         public async Task<IActionResult> UpdateAccount(int id, [FromBody] UpdateAccountDto model)
         {
@@ -124,7 +181,7 @@ namespace YourProject.Controllers
             return Ok(new { message = "UPDATED" });
         }
 
-        // --- 5. REVOKE ACCESS ---
+        // --- 7. REVOKE ACCESS ---
         [HttpPut("revoke-account/{id}")]
         public async Task<IActionResult> RevokeAccount(int id)
         {
@@ -132,13 +189,11 @@ namespace YourProject.Controllers
             if (user == null) return NotFound(new { message = "USER NOT FOUND" });
 
             user.Status = "INACTIVE";
-            _context.Entry(user).Property(u => u.Status).IsModified = true;
-
             await _context.SaveChangesAsync();
             return Ok(new { message = "ACCESS REVOKED" });
         }
 
-        // --- 6. REACTIVATE ACCESS ---
+        // --- 8. REACTIVATE ACCESS ---
         [HttpPut("reactivate-account/{id}")]
         public async Task<IActionResult> ReactivateAccount(int id)
         {
@@ -146,14 +201,11 @@ namespace YourProject.Controllers
             if (user == null) return NotFound(new { message = "USER NOT FOUND" });
 
             user.Status = "ACTIVE";
-            _context.Entry(user).Property(u => u.Status).IsModified = true;
-            
             await _context.SaveChangesAsync();
             return Ok(new { message = "ACCESS RESTORED" });
         }
     }
 
-    // --- SUPPORTING DTOs ---
     public class UserRegistrationDto {
         public string Name { get; set; } = string.Empty;
         public string EmployeeId { get; set; } = string.Empty;

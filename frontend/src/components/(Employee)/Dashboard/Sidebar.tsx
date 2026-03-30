@@ -1,10 +1,12 @@
 'use client';
+
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
   LayoutDashboard, Clock, MessageSquare, 
-  Target, BarChart3, CreditCard, UserCircle, LogOut, ShieldAlert, 
+  Target, BarChart3, CreditCard, UserCircle, LogOut, 
   FilePlus 
 } from 'lucide-react';
 
@@ -33,10 +35,16 @@ export const Sidebar = () => {
 
   return (
     <aside className="w-64 h-screen bg-[#020617] border-r border-white/5 flex flex-col p-6 sticky top-0 shrink-0">
-      {/* BRANDING SECTION */}
+      
+      {/* BRANDING SECTION - Updated to match Manager style */}
       <div className="flex items-center gap-3 mb-10 px-2">
-        <div className="h-9 w-9 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/20">
-          <ShieldAlert className="text-white w-5 h-5" strokeWidth={2.5} />
+        <div className="h-9 w-9 bg-white rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/20 overflow-hidden relative">
+          <Image 
+            src="/logo.png" 
+            alt="Logo" 
+            fill 
+            className="object-cover scale-150 object-center" 
+          />
         </div>
         <div className="flex flex-col">
           <span className="text-white font-black tracking-tighter text-lg leading-none uppercase italic">Axiom</span>
@@ -46,7 +54,6 @@ export const Sidebar = () => {
 
       {/* NAVIGATION SECTION */}
       <nav className="flex-1 space-y-1.5 overflow-y-auto custom-scrollbar pr-2">
-        
         {menuItems.map((item) => {
           const isActive = pathname === item.path;
           return (
@@ -75,11 +82,7 @@ export const Sidebar = () => {
           <span className="text-[9px] font-black uppercase tracking-[0.2em]">Terminate Session</span>
         </button>
         
-        <div className="mt-4 px-4">
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-          </div>
-        </div>
+        
       </div>
     </aside>
   );
