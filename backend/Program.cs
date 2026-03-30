@@ -12,13 +12,18 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 builder.Services.AddControllers();
 
+// 250025002500 SERVICES 25002500250025002500250025002500250025002500250025002500250025002500250025002500250025002500250025002500250025002500250025002500250025002500250025002500250025002500250025002500250025002500250025002500250025002500
+builder.Services.AddScoped<YourProject.Services.ReportService>();
+
+// ─── CORS ─────────────────────────────────────────────────────────────────────
+// AllowAnyHeader lets X-Employee-Id through from Next.js
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowNextJS", policy =>
     {
         policy.WithOrigins("http://localhost:3000")
               .AllowAnyMethod()
-              .AllowAnyHeader()
+              .AllowAnyHeader()   // ← allows X-Employee-Id
               .AllowCredentials();
     });
 });
@@ -30,7 +35,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-// ✅ CORRECT ORDER: Routing → CORS → Authorization
+// ─── MIDDLEWARE PIPELINE ──────────────────────────────────────────────────────
 app.UseRouting();
 app.UseCors("AllowNextJS");
 app.UseAuthorization();

@@ -1,143 +1,396 @@
 'use client';
 
-import React from 'react';
-import { Sidebar } from '../../../components/(Employee)/Dashboard/Sidebar'; 
-import { 
-  BarChart3, 
-  FileText, 
-  Download, 
-  Filter, 
-  Calendar, 
-  TrendingUp, 
-  PieChart, 
-  ArrowUpRight,
-  ExternalLink
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
+import ReportsView from '../../../components/(Employee)/Reports/Reports';
 
-const reportLogs = [
-  { id: 'REP-001', name: 'MONTHLY PERFORMANCE AUDIT', date: 'MAR 01, 2026', type: 'KPI SUMMARY', status: 'VERIFIED' },
-  { id: 'REP-002', name: 'QA CALL MONITORING LOGS', date: 'FEB 25, 2026', type: 'QUALITY SCORE', status: 'VERIFIED' },
-  { id: 'REP-003', name: 'ATTENDANCE DISCREPANCY', date: 'FEB 15, 2026', type: 'HR REPORT', status: 'PENDING' },
-  { id: 'REP-004', name: 'ANNUAL COMPLIANCE CHECK', date: 'JAN 10, 2026', type: 'LEGAL', status: 'ARCHIVED' },
-];
+export interface Report {
+  id: string;
+  reportNumber: string;
+  name: string;
+  type: string;
+  status: string;
+  createdAt: string;
+  employeeId: string;
+  department: string;
+  downloadUrl: string;
+}
+
+export interface UserProfile {
+  employeeId: string;
+  fullName: string;
+  department: string;
+  position: string;
+}
+
+// ─── PDF DOWNLOAD HELPER ──────────────────────────────────────────────────────
+// If the backend provides a real URL (not '#'), open it directly.
+// Otherwise generate a polished printable HTML page as fallback.
+export async function downloadReportPDF(report: Report, user: UserProfile | null) {
+  // Real backend PDF — open directly
+  if (report.downloadUrl && report.downloadUrl !== '#') {
+    window.open(report.downloadUrl, '_blank');
+    return;
+  }
+
+  // Fallback: generate a clean printable HTML report
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8"/>
+      <title>${report.reportNumber}</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;600;700&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+          font-family: 'IBM Plex Sans', monospace;
+          background: #fff;
+          color: #0a0a0a;
+          padding: 56px 64px;
+          font-size: 13px;
+          line-height: 1.6;
+        }
+
+        /* ── HEADER ── */
+        .header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          padding-bottom: 32px;
+          border-bottom: 3px solid #0a0a0a;
+          margin-bottom: 40px;
+        }
+        .header-left h1 {
+          font-size: 32px;
+          font-weight: 700;
+          letter-spacing: -1.5px;
+          line-height: 1;
+          margin-bottom: 6px;
+          font-family: 'IBM Plex Mono', monospace;
+        }
+        .header-left .subtitle {
+          font-size: 9px;
+          letter-spacing: 4px;
+          text-transform: uppercase;
+          color: #666;
+          font-family: 'IBM Plex Mono', monospace;
+        }
+        .header-right {
+          text-align: right;
+        }
+        .report-number {
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 2px;
+          color: #3730a3;
+          text-transform: uppercase;
+          margin-bottom: 4px;
+        }
+        .report-date {
+          font-size: 9px;
+          color: #999;
+          letter-spacing: 2px;
+          text-transform: uppercase;
+        }
+
+        /* ── BADGE ── */
+        .badge {
+          display: inline-block;
+          padding: 4px 14px;
+          border-radius: 99px;
+          font-size: 8px;
+          font-weight: 700;
+          letter-spacing: 3px;
+          text-transform: uppercase;
+          font-family: 'IBM Plex Mono', monospace;
+        }
+        .badge-approved { background: #d1fae5; color: #065f46; }
+        .badge-pending  { background: #fef3c7; color: #92400e; }
+        .badge-rejected { background: #fee2e2; color: #991b1b; }
+        .badge-type     { background: #e0e7ff; color: #3730a3; }
+
+        /* ── META GRID ── */
+        .meta-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 0;
+          border: 1.5px solid #e5e7eb;
+          border-radius: 12px;
+          overflow: hidden;
+          margin-bottom: 40px;
+        }
+        .meta-cell {
+          padding: 18px 24px;
+          border-right: 1.5px solid #e5e7eb;
+          border-bottom: 1.5px solid #e5e7eb;
+        }
+        .meta-cell:nth-child(even) { border-right: none; }
+        .meta-cell:nth-last-child(-n+2) { border-bottom: none; }
+        .meta-label {
+          font-size: 8px;
+          letter-spacing: 3px;
+          text-transform: uppercase;
+          color: #9ca3af;
+          font-family: 'IBM Plex Mono', monospace;
+          margin-bottom: 6px;
+          font-weight: 700;
+        }
+        .meta-value {
+          font-size: 14px;
+          font-weight: 600;
+          color: #0a0a0a;
+        }
+
+        /* ── SECTION ── */
+        .section-title {
+          font-size: 9px;
+          letter-spacing: 4px;
+          text-transform: uppercase;
+          color: #9ca3af;
+          font-family: 'IBM Plex Mono', monospace;
+          font-weight: 700;
+          margin-bottom: 16px;
+          padding-bottom: 8px;
+          border-bottom: 1px solid #f3f4f6;
+        }
+
+        /* ── DETAILS TABLE ── */
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 40px;
+        }
+        th {
+          text-align: left;
+          padding: 10px 16px;
+          font-size: 8px;
+          letter-spacing: 3px;
+          text-transform: uppercase;
+          color: #9ca3af;
+          font-family: 'IBM Plex Mono', monospace;
+          font-weight: 700;
+          background: #f9fafb;
+          border-bottom: 1.5px solid #e5e7eb;
+        }
+        td {
+          padding: 14px 16px;
+          border-bottom: 1px solid #f3f4f6;
+          font-size: 13px;
+          color: #374151;
+        }
+        tr:last-child td { border-bottom: none; }
+
+        /* ── FOOTER ── */
+        .footer {
+          margin-top: 56px;
+          padding-top: 24px;
+          border-top: 1.5px solid #e5e7eb;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .footer-left {
+          font-size: 8px;
+          letter-spacing: 3px;
+          text-transform: uppercase;
+          color: #d1d5db;
+          font-family: 'IBM Plex Mono', monospace;
+        }
+        .footer-right {
+          font-size: 8px;
+          letter-spacing: 2px;
+          text-transform: uppercase;
+          color: #d1d5db;
+          font-family: 'IBM Plex Mono', monospace;
+        }
+
+        /* ── WATERMARK ── */
+        .watermark {
+          position: fixed;
+          bottom: 80px;
+          right: 60px;
+          font-size: 9px;
+          letter-spacing: 6px;
+          text-transform: uppercase;
+          color: #f3f4f6;
+          font-family: 'IBM Plex Mono', monospace;
+          font-weight: 700;
+          transform: rotate(-30deg);
+          pointer-events: none;
+          font-size: 48px;
+        }
+
+        @media print {
+          body { padding: 32px 40px; }
+          .watermark { display: block; }
+        }
+      </style>
+    </head>
+    <body>
+
+      <div class="watermark">OFFICIAL</div>
+
+      <!-- HEADER -->
+      <div class="header">
+        <div class="header-left">
+          <h1>Performance<br/>Analytics</h1>
+          <div class="subtitle">Official Document Record &nbsp;•&nbsp; ${report.department}</div>
+        </div>
+        <div class="header-right">
+          <div class="report-number">${report.reportNumber}</div>
+          <div class="report-date">${new Date(report.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
+          <br/>
+          <span class="badge badge-type">${report.type}</span>
+          &nbsp;
+          <span class="badge ${
+            report.status?.toUpperCase() === 'APPROVED' ? 'badge-approved' :
+            report.status?.toUpperCase() === 'PENDING'  ? 'badge-pending' : 'badge-rejected'
+          }">${report.status}</span>
+        </div>
+      </div>
+
+      <!-- REPORT TITLE -->
+      <div style="margin-bottom:40px;">
+        <div class="section-title">Report Title</div>
+        <div style="font-size:20px;font-weight:700;letter-spacing:-0.5px;color:#0a0a0a;">${report.name}</div>
+      </div>
+
+      <!-- META GRID -->
+      <div class="section-title">Report Details</div>
+      <div class="meta-grid">
+        <div class="meta-cell">
+          <div class="meta-label">Employee ID</div>
+          <div class="meta-value">${report.employeeId}</div>
+        </div>
+        <div class="meta-cell">
+          <div class="meta-label">Department</div>
+          <div class="meta-value">${report.department}</div>
+        </div>
+        <div class="meta-cell">
+          <div class="meta-label">Full Name</div>
+          <div class="meta-value">${user?.fullName ?? '—'}</div>
+        </div>
+        <div class="meta-cell">
+          <div class="meta-label">Position</div>
+          <div class="meta-value">${user?.position ?? '—'}</div>
+        </div>
+      </div>
+
+      <!-- DETAILS TABLE -->
+      <div class="section-title">Full Record</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Report ID</td><td>${report.id}</td></tr>
+          <tr><td>Report Number</td><td>${report.reportNumber}</td></tr>
+          <tr><td>Type</td><td><span class="badge badge-type">${report.type}</span></td></tr>
+          <tr><td>Status</td><td><span class="badge ${
+            report.status?.toUpperCase() === 'APPROVED' ? 'badge-approved' :
+            report.status?.toUpperCase() === 'PENDING'  ? 'badge-pending' : 'badge-rejected'
+          }">${report.status}</span></td></tr>
+          <tr><td>Department</td><td>${report.department}</td></tr>
+          <tr><td>Employee ID</td><td>${report.employeeId}</td></tr>
+          <tr><td>Created At</td><td>${new Date(report.createdAt).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' })}</td></tr>
+        </tbody>
+      </table>
+
+      <!-- FOOTER -->
+      <div class="footer">
+        <div class="footer-left">Performance Analytics System &nbsp;•&nbsp; Auto-Generated</div>
+        <div class="footer-right">Printed ${new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</div>
+      </div>
+
+    </body>
+    </html>
+  `;
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const url  = URL.createObjectURL(blob);
+  const win  = window.open(url, '_blank');
+  if (win) {
+    setTimeout(() => {
+      win.print();
+      URL.revokeObjectURL(url);
+    }, 800);
+  }
+}
+
+// ─── PAGE ─────────────────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
+  const [user, setUser]           = useState<UserProfile | null>(null);
+  const [reports, setReports]     = useState<Report[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [filterType, setFilterType]     = useState<string>('ALL');
+  const [activeChart, setActiveChart]   = useState<'bar' | 'line'>('bar');
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        const stored     = localStorage.getItem('user');
+        const token      = localStorage.getItem('token');
+        const employeeId = stored ? JSON.parse(stored).employeeId : '';
+
+        if (!employeeId && !token) return;
+
+        const headers: HeadersInit = {
+          'Authorization': `Bearer ${token}`,
+          'X-Employee-Id': employeeId,
+          'Content-Type':  'application/json',
+        };
+
+        const [userRes, reportRes] = await Promise.all([
+          fetch('http://localhost:5076/api/Reports/user-profile', { headers }),
+          fetch('http://localhost:5076/api/Reports/my-reports',   { headers }),
+        ]);
+
+        if (userRes.status === 401) throw new Error('UNAUTHORIZED');
+        if (userRes.ok)    setUser(await userRes.json());
+        if (reportRes.ok)  setReports(await reportRes.json());
+
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Kernel Sync Error:', message);
+        toast.error('CONNECTION ERROR');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const filteredReports = filterType === 'ALL'
+    ? reports
+    : reports.filter(r => r.type?.toUpperCase() === filterType);
+
+  const allTypes = [
+    'ALL',
+    ...Array.from(new Set(reports.map(r => r.type?.toUpperCase()).filter(Boolean))),
+  ];
+
   return (
-    <main className="h-screen w-full flex bg-[#020617] text-slate-200 overflow-hidden font-sans uppercase">
-      {/* GLOBAL SIDEBAR */}
-      <Sidebar />
-
-      <section className="flex-1 flex flex-col overflow-y-auto bg-[radial-gradient(circle_at_bottom_left,_var(--tw-gradient-stops))] from-blue-900/10 via-[#020617] to-[#020617]">
-        
-        {/* HEADER SECTION */}
-        <header className="px-12 py-10 border-b border-white/5 flex justify-between items-end backdrop-blur-xl sticky top-0 z-20 bg-[#020617]/80">
-          <div>
-            <div className="flex items-center gap-2 text-emerald-500 mb-2">
-                <BarChart3 className="w-4 h-4" strokeWidth={3} />
-                <span className="text-[10px] font-black uppercase tracking-[0.4em]">Analytics Engine</span>
-            </div>
-            <h1 className="text-4xl font-black text-white tracking-tighter uppercase">
-              System <span className="text-emerald-500">Reports</span>
-            </h1>
-          </div>
-
-          <div className="flex gap-4">
-            <button className="flex items-center gap-2 px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">
-                <Filter className="w-4 h-4" /> Filter Category
-            </button>
-            <button className="flex items-center gap-2 px-6 py-4 bg-emerald-500 text-slate-950 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-xl shadow-emerald-500/20">
-                <Calendar className="w-4 h-4" /> Date Range
-            </button>
-          </div>
-        </header>
-
-        {/* MAIN CONTENT */}
-        <div className="p-12 max-w-[1600px] w-full mx-auto space-y-10">
-          
-          {/* TOP TRENDS CARDS */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <div className="bg-slate-900/40 border border-white/5 p-8 rounded-[3rem] relative overflow-hidden group">
-               <TrendingUp className="absolute top-6 right-8 w-12 h-12 text-emerald-500/10 group-hover:scale-125 transition-transform duration-500" />
-               <p className="text-[10px] font-black text-slate-500 tracking-[0.3em] mb-4">Overall KPI Trend</p>
-               <div className="flex items-end gap-4">
-                  <span className="text-5xl font-black text-white tracking-tighter">+12.4%</span>
-                  <span className="text-emerald-500 font-black text-xs mb-2 flex items-center gap-1">
-                    <ArrowUpRight className="w-4 h-4" /> GROWTH
-                  </span>
-               </div>
-            </div>
-
-            <div className="bg-slate-900/40 border border-white/5 p-8 rounded-[3rem] relative overflow-hidden group">
-               <PieChart className="absolute top-6 right-8 w-12 h-12 text-blue-500/10 group-hover:scale-125 transition-transform duration-500" />
-               <p className="text-[10px] font-black text-slate-500 tracking-[0.3em] mb-4">Quality Score AVG</p>
-               <div className="flex items-end gap-4">
-                  <span className="text-5xl font-black text-white tracking-tighter">98.2</span>
-                  <span className="text-blue-400 font-black text-xs mb-2 uppercase tracking-widest">Target Met</span>
-               </div>
-            </div>
-
-            <div className="bg-emerald-500 p-8 rounded-[3rem] text-slate-950 flex flex-col justify-between">
-                <div>
-                  <p className="text-[10px] font-black opacity-60 uppercase tracking-[0.3em] mb-2">Available Credits</p>
-                  <p className="text-4xl font-black tracking-tighter uppercase">Annual Bonus</p>
-                </div>
-                <button className="mt-6 flex items-center justify-between bg-slate-950 text-white px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] transition-all">
-                  Claim Breakdown <ExternalLink className="w-4 h-4" />
-                </button>
-            </div>
-          </div>
-
-          {/* GENERATED REPORTS TABLE */}
-          <div className="bg-slate-900/20 border border-white/5 rounded-[3rem] overflow-hidden backdrop-blur-3xl shadow-2xl">
-            <div className="px-10 py-8 border-b border-white/5 flex justify-between items-center bg-white/5">
-                <h3 className="text-xs font-black uppercase tracking-[0.4em] text-white">Generated Document History</h3>
-                <FileText className="w-5 h-5 text-slate-500" />
-            </div>
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="text-[10px] uppercase tracking-[0.25em] text-slate-500 font-black border-b border-white/5">
-                  <th className="px-10 py-6 font-black">ID</th>
-                  <th className="px-10 py-6 font-black">Document Name</th>
-                  <th className="px-10 py-6 font-black">Generation Date</th>
-                  <th className="px-10 py-6 font-black text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5 font-bold">
-                {reportLogs.map((report) => (
-                  <tr key={report.id} className="hover:bg-white/5 transition-all group cursor-pointer">
-                    <td className="px-10 py-8 text-[10px] font-black text-slate-500 font-mono tracking-widest">{report.id}</td>
-                    <td className="px-10 py-8">
-                      <div className="flex flex-col">
-                        <span className="text-xs font-black text-white tracking-tight uppercase group-hover:text-emerald-400 transition-colors">{report.name}</span>
-                        <span className="text-[9px] text-slate-600 font-black tracking-widest mt-1 uppercase">{report.type}</span>
-                      </div>
-                    </td>
-                    <td className="px-10 py-8 text-[10px] font-black text-slate-500 tracking-tighter uppercase">{report.date}</td>
-                    <td className="px-10 py-8 text-right">
-                      <button className="inline-flex items-center gap-2 text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em] border border-emerald-500/20 px-4 py-2 rounded-xl hover:bg-emerald-500 hover:text-slate-950 transition-all">
-                        <Download className="w-3.5 h-3.5" /> GET PDF
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* SYSTEM FOOTER ALERT */}
-          <div className="p-8 bg-slate-900/50 border border-white/5 rounded-[2.5rem] flex items-center gap-6">
-            <div className="h-12 w-12 rounded-2xl bg-slate-950 flex items-center justify-center text-emerald-500 border border-white/10">
-                <BarChart3 className="w-6 h-6" />
-            </div>
-            <div className="flex-1">
-                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">
-                  Daily logs are archived every 24 hours. For customized report requests, please contact the <span className="text-emerald-500 underline cursor-pointer">Data Administration Unit</span>.
-                </p>
-            </div>
-          </div>
-
-        </div>
-      </section>
-    </main>
+    <ReportsView
+      user={user}
+      reports={reports}
+      filteredReports={filteredReports}
+      isLoading={isLoading}
+      filterType={filterType}
+      setFilterType={setFilterType}
+      allTypes={allTypes}
+      activeChart={activeChart}
+      setActiveChart={setActiveChart}
+      onDownload={(report) => downloadReportPDF(report, user)}
+    />
   );
 }

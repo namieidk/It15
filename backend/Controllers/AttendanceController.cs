@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using YourProject.Data;
 using YourProject.Hubs;
 using YourProject.Models;
+using YourProject.Services;
 using System.Text.Json;
 
 namespace YourProject.Controllers
@@ -12,17 +13,22 @@ namespace YourProject.Controllers
     [ApiController]
     public class AttendanceController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
+        private readonly ApplicationDbContext      _context;
         private readonly IHubContext<AttendanceHub> _hub;
-        private readonly TimeZoneInfo _phZone = TimeZoneInfo.FindSystemTimeZoneById("Singapore Standard Time");
+        private readonly ReportService             _reports;
+        private readonly TimeZoneInfo              _phZone =
+            TimeZoneInfo.FindSystemTimeZoneById("Singapore Standard Time");
 
-        public AttendanceController(ApplicationDbContext context, IHubContext<AttendanceHub> hub)
+        public AttendanceController(
+            ApplicationDbContext context,
+            IHubContext<AttendanceHub> hub,
+            ReportService reports)
         {
             _context = context;
-            _hub = hub;
+            _hub     = hub;
+            _reports = reports;
         }
 
-        // --- NEW: HR GLOBAL ATTENDANCE ---
         // GET: api/Attendance/all
         [HttpGet("all")]
         public async Task<IActionResult> GetAllAttendance()
@@ -38,12 +44,12 @@ namespace YourProject.Controllers
                     .ToListAsync();
 
                 var uiData = records.Select(r => new {
-                    id = r.EmployeeId,
-                    name = r.Name?.ToUpper() ?? "UNKNOWN",
-                    dept = r.Department?.ToUpper() ?? "N/A", // Added for HR Table
-                    shift = "SCHEDULED",
-                    login = r.ClockInTime.HasValue ? r.ClockInTime.Value.ToString("HH:mm") : "--:--",
-                    status = r.Status?.ToUpper() ?? "PRESENT",
+                    id     = r.EmployeeId,
+                    name   = r.Name?.ToUpper()       ?? "UNKNOWN",
+                    dept   = r.Department?.ToUpper() ?? "N/A",
+                    shift  = "SCHEDULED",
+                    login  = r.ClockInTime.HasValue ? r.ClockInTime.Value.ToString("HH:mm") : "--:--",
+                    status = r.Status?.ToUpper()     ?? "PRESENT",
                     health = r.Status == "LATE" ? "WARNING" : "GOOD"
                 });
 
@@ -70,12 +76,12 @@ namespace YourProject.Controllers
                     .ToListAsync();
 
                 var uiData = records.Select(r => new {
-                    id = r.EmployeeId,
-                    name = r.Name?.ToUpper() ?? "UNKNOWN",
-                    dept = r.Department?.ToUpper() ?? "N/A",
-                    shift = "SCHEDULED",
-                    login = r.ClockInTime.HasValue ? r.ClockInTime.Value.ToString("HH:mm") : "--:--",
-                    status = r.Status?.ToUpper() ?? "PRESENT",
+                    id     = r.EmployeeId,
+                    name   = r.Name?.ToUpper()       ?? "UNKNOWN",
+                    dept   = r.Department?.ToUpper() ?? "N/A",
+                    shift  = "SCHEDULED",
+                    login  = r.ClockInTime.HasValue ? r.ClockInTime.Value.ToString("HH:mm") : "--:--",
+                    status = r.Status?.ToUpper()     ?? "PRESENT",
                     health = r.Status == "LATE" ? "WARNING" : "GOOD"
                 });
 
@@ -87,6 +93,7 @@ namespace YourProject.Controllers
             }
         }
 
+        // POST: api/Attendance/clockin
         [HttpPost("clockin")]
         public async Task<IActionResult> ClockIn([FromBody] Attendance model)
         {
@@ -94,37 +101,35 @@ namespace YourProject.Controllers
             {
                 DateTime phNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _phZone);
 
-                var user = await _context.Users.FirstOrDefaultAsync(u => u.EmployeeId == model.EmployeeId);
-                var schedule = await _context.Schedules.FirstOrDefaultAsync(s => s.EmployeeId == model.EmployeeId && s.IsActive);
+                var user = await _context.Users
+                    .FirstOrDefaultAsync(u => u.EmployeeId == model.EmployeeId);
+                var schedule = await _context.Schedules
+                    .FirstOrDefaultAsync(s => s.EmployeeId == model.EmployeeId && s.IsActive);
 
                 if (user == null || schedule == null)
                     return BadRequest(new { message = "User Profile or Schedule not found." });
 
-                model.Name = user.Name;
-                model.Role = user.Role;
-                model.Department = user.Department;
+                model.Name        = user.Name;
+                model.Role        = user.Role;
+                model.Department  = user.Department;
                 model.ClockInTime = phNow;
-                model.Status = (phNow.TimeOfDay > schedule.ShiftStart) ? "LATE" : "PRESENT";
+                model.Status      = (phNow.TimeOfDay > schedule.ShiftStart) ? "LATE" : "PRESENT";
 
                 _context.Attendance.Add(model);
                 await _context.SaveChangesAsync();
 
-                // --- UPDATED SIGNALR BROADCAST ---
                 var newRecord = new {
-                    id = model.EmployeeId,
-                    name = model.Name?.ToUpper() ?? "UNKNOWN",
-                    dept = model.Department?.ToUpper() ?? "N/A",
-                    shift = "SCHEDULED",
-                    login = phNow.ToString("HH:mm"),
-                    status = model.Status?.ToUpper() ?? "PRESENT",
+                    id     = model.EmployeeId,
+                    name   = model.Name?.ToUpper()       ?? "UNKNOWN",
+                    dept   = model.Department?.ToUpper() ?? "N/A",
+                    shift  = "SCHEDULED",
+                    login  = phNow.ToString("HH:mm"),
+                    status = model.Status?.ToUpper()     ?? "PRESENT",
                     health = model.Status == "LATE" ? "WARNING" : "GOOD"
                 };
 
-                // 1. Broadcast to Department Group (For Managers)
                 await _hub.Clients.Group(model.Department ?? "GENERAL")
                     .SendAsync("NewClockIn", newRecord);
-
-                // 2. Broadcast to "HR_GLOBAL" Group (For HR Dashboard)
                 await _hub.Clients.Group("HR_GLOBAL")
                     .SendAsync("NewClockIn", newRecord);
 
@@ -132,11 +137,10 @@ namespace YourProject.Controllers
                 {
                     var lateAlert = new {
                         employeeId = model.EmployeeId,
-                        name = model.Name?.ToUpper(),
-                        time = phNow.ToString("HH:mm"),
-                        dept = model.Department?.ToUpper()
+                        name       = model.Name?.ToUpper(),
+                        time       = phNow.ToString("HH:mm"),
+                        dept       = model.Department?.ToUpper()
                     };
-
                     await _hub.Clients.Group(model.Department ?? "GENERAL").SendAsync("LateNotification", lateAlert);
                     await _hub.Clients.Group("HR_GLOBAL").SendAsync("LateNotification", lateAlert);
                 }
@@ -149,28 +153,46 @@ namespace YourProject.Controllers
             }
         }
 
+        // POST: api/Attendance/clockout ── auto-creates an Attendance Report
         [HttpPost("clockout")]
         public async Task<IActionResult> ClockOut([FromBody] JsonElement body)
         {
             try
             {
-                string empId = body.GetProperty("employeeId").GetString() ?? "";
-                var record = await _context.Attendance
+                string empId  = body.GetProperty("employeeId").GetString() ?? "";
+                var    record = await _context.Attendance
                     .Where(a => a.EmployeeId == empId && a.ClockOutTime == null)
                     .OrderByDescending(a => a.ClockInTime)
                     .FirstOrDefaultAsync();
 
-                if (record == null) return NotFound(new { message = "No active shift found." });
+                if (record == null)
+                    return NotFound(new { message = "No active shift found." });
 
                 DateTime phNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _phZone);
                 record.ClockOutTime = phNow;
-                
+
                 double workHrs = (record.ClockOutTime.Value - record.ClockInTime!.Value).TotalHours - 1;
                 record.TotalHoursWorked = Math.Max(0, Math.Round(workHrs, 2));
-                record.RegularHours = Math.Min(8, record.TotalHoursWorked);
-                record.OvertimeHours = Math.Max(0, record.TotalHoursWorked - 8);
+                record.RegularHours     = Math.Min(8, record.TotalHoursWorked);
+                record.OvertimeHours    = Math.Max(0, record.TotalHoursWorked - 8);
 
                 await _context.SaveChangesAsync();
+
+                // ── Auto-generate Attendance Report on clock-out ──────────────
+                var user = await _context.Users
+                    .FirstOrDefaultAsync(u => u.EmployeeId == empId);
+
+                if (user != null)
+                {
+                    await _reports.CreateAttendanceReportAsync(
+                        employeeId:       empId,
+                        department:       user.Department,
+                        attendanceStatus: record.Status ?? "PRESENT",
+                        date:             record.ClockInTime.Value.Date,
+                        hoursWorked:      record.TotalHoursWorked
+                    );
+                }
+
                 return Ok(new { message = "Clock Out Success" });
             }
             catch (Exception ex)
@@ -179,6 +201,7 @@ namespace YourProject.Controllers
             }
         }
 
+        // GET: api/Attendance/my-logs/{employeeId}
         [HttpGet("my-logs/{employeeId}")]
         public async Task<IActionResult> GetMyLogs(string employeeId)
         {
