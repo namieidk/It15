@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using YourProject.Data;
 
@@ -11,9 +12,11 @@ using YourProject.Data;
 namespace backend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260330154107_AddPayrollAndProfile")]
+    partial class AddPayrollAndProfile
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -92,12 +95,6 @@ namespace backend.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<decimal>("GrossPay")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("NetPay")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<decimal>("NightDiff")
                         .HasColumnType("decimal(18,2)");
 
@@ -125,9 +122,6 @@ namespace backend.Migrations
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("TotalDeductions")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("WithholdingTax")
                         .HasColumnType("decimal(18,2)");
@@ -301,111 +295,6 @@ namespace backend.Migrations
                     b.ToTable("LoginLogs");
                 });
 
-            modelBuilder.Entity("YourProject.Models.PayPeriod", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("CutoffDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Label")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("PayDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("PeriodEnd")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("PeriodStart")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("PayPeriods");
-                });
-
-            modelBuilder.Entity("YourProject.Models.Payslip", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("Allowances")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("BasicSalary")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("EmployeeId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("GeneratedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("GrossPay")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("NetPay")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("NightDiff")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime?>("NotifiedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("Overtime")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("PagIbigDeduction")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime>("PayDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("PeriodEnd")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("PeriodStart")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("PhilHealthDeduction")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("SssDeduction")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("TotalDeductions")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("WithholdingTax")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Payslips");
-                });
-
             modelBuilder.Entity("YourProject.Models.Schedule", b =>
                 {
                     b.Property<int>("Id")
@@ -469,14 +358,8 @@ namespace backend.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("PagIbigId")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("PasswordHash")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("PhilHealthId")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Phone")
@@ -488,9 +371,6 @@ namespace backend.Migrations
 
                     b.Property<string>("Role")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("SssId")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Status")

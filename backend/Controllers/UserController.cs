@@ -18,7 +18,7 @@ namespace YourProject.Controllers
 
         // GET: api/User/profile/{employeeId}
         [HttpGet("profile/{employeeId}")]
-        public async Task<IActionResult> GetManagerProfile(string employeeId)
+        public async Task<IActionResult> GetProfile(string employeeId)
         {
             var empId = employeeId.Trim();
 
@@ -26,34 +26,25 @@ namespace YourProject.Controllers
                 .FirstOrDefaultAsync(u => u.EmployeeId == empId);
 
             if (user == null)
-                return NotFound(new { message = $"Identity {empId} not found in Axiom Core." });
-
-            // Fetch direct reports (Employees in the same department)
-            var directReports = await _context.Users
-                .Where(u => u.Department == user.Department && 
-                            u.Role.ToUpper() == "EMPLOYEE" && 
-                            u.EmployeeId != empId)
-                .Select(u => new {
-                    name = u.Name,
-                    role = u.Role,
-                    status = u.Status ?? "OFF-SHIFT"
-                })
-                .ToListAsync();
+                return NotFound(new { message = $"Identity {empId} not found." });
 
             return Ok(new
             {
-                name          = user.Name,
-                employeeId    = user.EmployeeId,
-                role          = user.Role,
-                department    = user.Department,
-                email         = user.Email ?? "NOT CONFIGURED",
-                phone         = user.Phone ?? "NOT CONFIGURED",
-                workstation   = user.Workstation ?? "UNASSIGNED",
-                profileImage  = user.ProfileImage,
-                bannerImage   = user.BannerImage, // <-- CRITICAL: Added to GET response
-                status        = user.Status ?? "ACTIVE",
-                teamSize      = directReports.Count,
-                directReports = directReports
+                name         = user.Name,
+                employeeId   = user.EmployeeId,
+                role         = user.Role,
+                department   = user.Department,
+                email        = user.Email        ?? "NOT CONFIGURED",
+                phone        = user.Phone        ?? "NOT CONFIGURED",
+                workstation  = user.Workstation  ?? "UNASSIGNED",
+                profileImage = user.ProfileImage,
+                bannerImage  = user.BannerImage,
+                status       = user.Status       ?? "ACTIVE",
+
+                // Government IDs
+                sssId        = user.SssId        ?? string.Empty,
+                philHealthId = user.PhilHealthId ?? string.Empty,
+                pagIbigId    = user.PagIbigId    ?? string.Empty,
             });
         }
 
@@ -66,27 +57,28 @@ namespace YourProject.Controllers
             var user = await _context.Users
                 .FirstOrDefaultAsync(u => u.EmployeeId == dto.EmployeeId.Trim());
 
-            if (user == null) 
+            if (user == null)
                 return NotFound(new { message = "User record not found." });
 
-            // 1. Update Standard Fields
-            user.Email = dto.Email;
-            user.Phone = dto.Phone;
+            // Standard fields
+            user.Email      = dto.Email;
+            user.Phone      = dto.Phone;
             user.Workstation = dto.Workstation;
-            
-            // 2. Update Avatar if provided
+
+            // Government IDs
+            user.SssId        = dto.SssId;
+            user.PhilHealthId = dto.PhilHealthId;
+            user.PagIbigId    = dto.PagIbigId;
+
+            // Avatar
             if (!string.IsNullOrEmpty(dto.ProfileImage))
-            {
                 user.ProfileImage = dto.ProfileImage;
-            }
 
-            // 3. Update Banner if provided
+            // Banner
             if (!string.IsNullOrEmpty(dto.BannerImage))
-            {
                 user.BannerImage = dto.BannerImage;
-            }
 
-            try 
+            try
             {
                 await _context.SaveChangesAsync();
             }
@@ -95,25 +87,34 @@ namespace YourProject.Controllers
                 return StatusCode(500, new { message = "Database sync failed.", error = ex.Message });
             }
 
-            return Ok(new { 
-                message = "Biometrics and Visuals Updated", 
+            return Ok(new
+            {
+                message      = "Profile updated successfully.",
                 profileImage = user.ProfileImage,
-                bannerImage = user.BannerImage,
-                workstation = user.Workstation 
+                bannerImage  = user.BannerImage,
+                workstation  = user.Workstation,
+                sssId        = user.SssId,
+                philHealthId = user.PhilHealthId,
+                pagIbigId    = user.PagIbigId,
             });
         }
     }
 
-    // --- DATA TRANSFER OBJECT ---
+    // ── DTO ───────────────────────────────────────────────────────────────────
     public class UserProfileUpdateDto
     {
-        public string EmployeeId { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
-        public string Phone { get; set; } = string.Empty;
+        public string EmployeeId  { get; set; } = string.Empty;
+        public string Email       { get; set; } = string.Empty;
+        public string Phone       { get; set; } = string.Empty;
         public string Workstation { get; set; } = string.Empty;
-        
-        // Visual Assets from Cloudinary
-        public string? ProfileImage { get; set; } 
-        public string? BannerImage { get; set; }  
+
+        // Visual assets
+        public string? ProfileImage { get; set; }
+        public string? BannerImage  { get; set; }
+
+        // Government IDs
+        public string? SssId        { get; set; }
+        public string? PhilHealthId { get; set; }
+        public string? PagIbigId    { get; set; }
     }
 }

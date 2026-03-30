@@ -30,7 +30,9 @@ namespace YourProject.Models
         public string Workstation { get; set; } = "FLOOR 1 // MAIN OFFICE";
         public string? ProfileImage { get; set; }
         public string? BannerImage { get; set; }
-
+        public string? SssId { get; set; }
+        public string? PhilHealthId { get; set; }
+        public string? PagIbigId { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }

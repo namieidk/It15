@@ -19,5 +19,9 @@ namespace YourProject.Data
 
         public DbSet<Evaluation> Evaluations { get; set; }
         public DbSet<PeerFeedback> PeerFeedbacks { get; set; }
+        public DbSet<EmployeeProfile> EmployeeProfiles { get; set; }
+        public DbSet<Payroll> Payroll { get; set; }
+        public DbSet<PayPeriod> PayPeriods { get; set; }
+        public DbSet<Payslip> Payslips { get; set; }
     }
 }
