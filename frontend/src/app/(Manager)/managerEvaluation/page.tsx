@@ -22,33 +22,35 @@ export default function EvaluationPage() {
   const getManagerInfo = () => {
     try {
       const stored = localStorage.getItem('user');
-      if (!stored) return { id: '', dept: '' };
+      if (!stored) return { id: '', dept: '', role: '' };
       const parsed = JSON.parse(stored);
       return {
         id:   String(parsed.employeeId || '').trim(),
         dept: String(parsed.department || '').trim().toUpperCase(),
+        role: String(parsed.role || '').trim().toUpperCase(),
       };
     } catch {
-      return { id: '', dept: '' };
+      return { id: '', dept: '', role: '' };
     }
   };
 
   const fetchAgents = useCallback(async () => {
-    const { id, dept } = getManagerInfo();
+    const { id, dept, role } = getManagerInfo();
     if (!dept) return;
 
     setLoading(true);
     setError(null);
     try {
+      // UPDATED TO THE CORRECT ENDPOINT NAME: agents-with-status
       const res = await fetch(
-        `${API_BASE}/agents?department=${encodeURIComponent(dept)}&excludeId=${encodeURIComponent(id)}`
+        `${API_BASE}/agents-with-status?department=${encodeURIComponent(dept)}&excludeId=${encodeURIComponent(id)}&viewerRole=${role}&evaluationType=peer`
       );
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
       setAgents(data);
     } catch (err) {
       console.error("Connection Error:", err);
-      setError("Cannot connect to server. Make sure the backend is running on port 5076.");
+      setError("Cannot connect to server. Check backend routes.");
     } finally {
       setLoading(false);
     }
@@ -57,18 +59,17 @@ export default function EvaluationPage() {
   useEffect(() => { fetchAgents(); }, [fetchAgents]);
 
   const handleSelectAgent = async (agent: Agent) => {
+    if (agent.alreadyEvaluated && view === 'evaluate') return;
+    
     setSelectedAgent(agent);
-
     if (view === 'results') {
       setLoading(true);
       try {
         const res = await fetch(`${API_BASE}/peer-results/${agent.id}`);
-        if (!res.ok) throw new Error(`Server error: ${res.status}`);
         const data = await res.json();
         setPeerFeedbacks(data);
         setView('peer-detail');
       } catch (err) {
-        console.error("Peer results error:", err);
         setError("Failed to load peer results.");
       } finally {
         setLoading(false);
@@ -98,10 +99,9 @@ export default function EvaluationPage() {
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
 
       setView('hub');
-      fetchAgents();
+      fetchAgents(); // Refresh the list to apply locks
     } catch (err) {
-      console.error("Submit error:", err);
-      setError("Submission failed. Please try again.");
+      setError("Submission failed. Monthly limit reached or server error.");
     } finally {
       setLoading(false);
     }
@@ -110,53 +110,28 @@ export default function EvaluationPage() {
   return (
     <main className="h-screen w-full flex bg-[#020617] text-slate-200 overflow-hidden font-sans uppercase relative">
       <ManagerSidebar />
-
       <div className="flex-1 flex flex-col overflow-hidden relative">
-
         {error && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-red-900/80 border border-red-500/40 text-red-300 text-[10px] font-black tracking-widest px-6 py-3 rounded-2xl backdrop-blur-sm">
-            ⚠ {error}
-            <button onClick={() => setError(null)} className="ml-4 text-red-400 hover:text-white">✕</button>
+            ⚠ {error} <button onClick={() => setError(null)} className="ml-4 text-red-400 hover:text-white">✕</button>
           </div>
         )}
-
-        {view === 'hub' && (
-          <EvaluationHubUI onNavigate={(next) => setView(next as ViewState)} />
-        )}
-
+        {view === 'hub' && <EvaluationHubUI onNavigate={(next) => setView(next as ViewState)} />}
         {(view === 'evaluate' || view === 'results') && (
-          <TeamListUI
-            agents={agents}
-            mode={view}
-            onBack={() => setView('hub')}
-            onSelectAgent={handleSelectAgent}
-          />
+          <TeamListUI agents={agents} mode={view} onBack={() => setView('hub')} onSelectAgent={handleSelectAgent} />
         )}
-
         {view === 'form' && selectedAgent && (
-          <EvaluationFormUI
-            agent={selectedAgent}
-            onBack={() => setView('evaluate')}
-            onSubmit={handleFormSubmit}
-          />
+          <EvaluationFormUI agent={selectedAgent} onBack={() => setView('evaluate')} onSubmit={handleFormSubmit} />
         )}
-
         {view === 'peer-detail' && selectedAgent && (
-          <PeerResultsUI
-            agent={selectedAgent}
-            feedbacks={peerFeedbacks}
-            onClose={() => setView('results')}
-          />
+          <PeerResultsUI agent={selectedAgent} feedbacks={peerFeedbacks} onClose={() => setView('results')} />
         )}
-
         {loading && (
           <div className="absolute inset-0 bg-[#020617]/90 backdrop-blur-md flex flex-col items-center justify-center z-50">
             <div className="w-32 h-1 bg-indigo-900/20 rounded-full overflow-hidden mb-4">
               <div className="h-full bg-indigo-600 animate-pulse" />
             </div>
-            <span className="text-[10px] font-black tracking-[0.4em] text-indigo-500">
-              PROCESSING PERSONNEL DATA...
-            </span>
+            <span className="text-[10px] font-black tracking-[0.4em] text-indigo-500">PROCESSING PERSONNEL DATA...</span>
           </div>
         )}
       </div>

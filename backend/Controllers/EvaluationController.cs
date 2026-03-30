@@ -1,7 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using YourProject.Data;
-using YourProject.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using YourProject.Data; 
+using YourProject.Models; 
 
 namespace YourProject.Controllers
 {
@@ -16,59 +20,81 @@ namespace YourProject.Controllers
             _context = context;
         }
 
-        [HttpGet("agents")]
+        // 1. GET AGENTS WITH STATUS
+        [HttpGet("agents-with-status")]
         public async Task<IActionResult> GetAgents(
-            [FromQuery] string? department,
-            [FromQuery] string? excludeId,
-            [FromQuery] string viewerRole = "MANAGER")
+            [FromQuery] string department,
+            [FromQuery] string excludeId,
+            [FromQuery] string viewerRole,
+            [FromQuery] string mode) // 'evaluate' or 'results'
         {
             try
             {
-                var query = _context.Users.AsQueryable();
+                var firstDayOfMonth = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+                var isHR = viewerRole?.ToUpper() == "HR";
+                var deptUpper = department?.ToUpper() ?? "";
 
-                // 1. Base Role Filtering
-                if (viewerRole.ToUpper() == "HR")
-                {
-                    // 🛡️ HR Logic: Can see Managers and Employees ONLY.
-                    // This automatically hides ADMINS and the HR themselves.
-                    query = query.Where(u => u.Role.ToUpper() == "MANAGER" || u.Role.ToUpper() == "EMPLOYEE");
-                }
-                else
-                {
-                    // 🛡️ Manager Logic: Can ONLY see Employees.
-                    query = query.Where(u => u.Role.ToUpper() == "EMPLOYEE");
-                }
+                // BASE QUERY: Exclude Admins and the viewer themselves
+                var query = _context.Users.Where(u => u.Role.ToUpper() != "ADMIN");
 
-                // 2. Department Filtering (Optional for HR, usually required for Managers)
-                if (!string.IsNullOrWhiteSpace(department))
-                {
-                    var deptUpper = department.Trim().ToUpper();
-                    query = query.Where(u => u.Department.ToUpper() == deptUpper);
-                }
-
-                // 3. Self-Exclusion Safety 
                 if (!string.IsNullOrWhiteSpace(excludeId))
                 {
                     query = query.Where(u => u.EmployeeId != excludeId.Trim());
                 }
 
+                // --- HR SPECIFIC LOGIC ---
+                if (isHR)
+                {
+                    if (mode == "evaluate")
+                    {
+                        // HR can ONLY evaluate Managers (Global search, no dept restriction)
+                        query = query.Where(u => u.Role.ToUpper() == "MANAGER");
+                    }
+                    else if (mode == "results")
+                    {
+                        // HR sees everyone (Manager + Employee) but restricted to the chosen department
+                        if (!string.IsNullOrEmpty(deptUpper))
+                        {
+                            query = query.Where(u => u.Department.ToUpper() == deptUpper);
+                        }
+                    }
+                }
+                else 
+                {
+                    // --- NON-HR (MANAGER/PEER) LOGIC ---
+                    // Regular users only see their own department
+                    query = query.Where(u => u.Department.ToUpper() == deptUpper);
+                }
+
                 var agents = await query
                     .Select(u => new {
-                        id         = u.EmployeeId,
-                        name       = u.Name.ToUpper(),
-                        role       = u.Role.ToUpper(),
+                        id = u.EmployeeId,
+                        name = u.Name.ToUpper(),
+                        role = u.Role.ToUpper(),
                         department = u.Department.ToUpper(),
-                        peerScore  = _context.PeerFeedbacks
-                            .Where(f => f.TargetEmployeeId == u.EmployeeId)
-                            .Any()
-                                ? _context.PeerFeedbacks
-                                    .Where(f => f.TargetEmployeeId == u.EmployeeId)
-                                    .Average(f => f.Score).ToString("F1")
-                                : "0.0"
+                        
+                        alreadyEvaluated = _context.Evaluations.Any(e => 
+                            e.EvaluatorId.ToString() == excludeId && 
+                            e.TargetEmployeeId.ToString() == u.EmployeeId &&
+                            e.DateSubmitted >= firstDayOfMonth),
+
+                        peerScoreValue = _context.Evaluations
+                            .Where(e => e.TargetEmployeeId.ToString() == u.EmployeeId)
+                            .Select(e => (double?)e.Score)
+                            .Average() ?? 0.0
                     })
                     .ToListAsync();
 
-                return Ok(agents);
+                var result = agents.Select(a => new {
+                    a.id,
+                    a.name,
+                    a.role,
+                    a.department,
+                    a.alreadyEvaluated,
+                    peerScore = a.peerScoreValue.ToString("F1")
+                });
+
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -76,46 +102,60 @@ namespace YourProject.Controllers
             }
         }
 
+        // 2. GET RESULTS (Pulls feedback history)
         [HttpGet("peer-results/{employeeId}")]
         public async Task<IActionResult> GetPeerResults(string employeeId)
         {
             try
             {
-                var feedback = await _context.PeerFeedbacks
-                    .Where(f => f.TargetEmployeeId == employeeId)
-                    .Select(f => new {
-                        peerId  = f.AnonymousPeerId,
-                        score   = f.Score.ToString("F1"),
-                        comment = f.Comment
+                var feedbacks = await _context.Evaluations
+                    .Where(e => e.TargetEmployeeId.ToString() == employeeId)
+                    .OrderByDescending(e => e.DateSubmitted)
+                    .Select(e => new {
+                        id = e.Id, 
+                        peerDisplay = "Anonymous", 
+                        score = e.Score.ToString("F1"),
+                        comment = e.Comments,
+                        date = e.DateSubmitted.ToString("MMM dd, yyyy")
                     })
                     .ToListAsync();
 
-                return Ok(feedback);
+                return Ok(feedbacks);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = ex.Message });
+                return StatusCode(500, new { message = "Error retrieving results", error = ex.Message });
             }
         }
 
+        // 3. SUBMIT EVALUATION
         [HttpPost("submit")]
         public async Task<IActionResult> SubmitEvaluation([FromBody] EvaluationSubmitModel model)
         {
             try
             {
+                var firstDayOfMonth = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+                
+                bool exists = await _context.Evaluations.AnyAsync(e => 
+                    e.EvaluatorId.ToString() == model.EvaluatorId && 
+                    e.TargetEmployeeId.ToString() == model.TargetEmployeeId &&
+                    e.DateSubmitted >= firstDayOfMonth);
+
+                if (exists) return BadRequest(new { message = "Monthly limit reached for this target." });
+
                 var evaluation = new Evaluation
                 {
                     TargetEmployeeId = int.Parse(model.TargetEmployeeId),
-                    EvaluatorId      = int.Parse(model.EvaluatorId),
-                    Score            = model.Score,
-                    Comments         = model.Comments ?? "",
-                    DateSubmitted    = DateTime.Now
+                    EvaluatorId = int.Parse(model.EvaluatorId),
+                    Score = model.Score,
+                    Comments = model.Comments ?? "",
+                    DateSubmitted = DateTime.Now
                 };
 
                 _context.Evaluations.Add(evaluation);
                 await _context.SaveChangesAsync();
 
-                return Ok(new { message = "Evaluation saved successfully." });
+                return Ok(new { message = "Audit committed." });
             }
             catch (Exception ex)
             {
@@ -127,8 +167,8 @@ namespace YourProject.Controllers
     public class EvaluationSubmitModel
     {
         public string TargetEmployeeId { get; set; } = string.Empty;
-        public string EvaluatorId      { get; set; } = string.Empty;
-        public double Score            { get; set; }
-        public string? Comments        { get; set; }
+        public string EvaluatorId { get; set; } = string.Empty;
+        public double Score { get; set; }
+        public string? Comments { get; set; }
     }
 }

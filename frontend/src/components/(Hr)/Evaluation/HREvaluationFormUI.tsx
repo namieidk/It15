@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Send, ArrowLeft, ShieldCheck, Star } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Send, ArrowLeft, ShieldCheck, Star, Activity, AlertCircle } from 'lucide-react';
 import { Agent } from './HRTeamList';
 
 const CRITERIA = [
@@ -22,14 +22,6 @@ const CRITERIA = [
   { key: 'goal_achievement',    label: 'GOAL ACHIEVEMENT',         desc: 'Successfully meets individual KPIs and performance targets.' },
 ];
 
-const SCORE_LABELS: Record<number, string> = {
-  1: 'POOR',
-  2: 'FAIR',
-  3: 'GOOD',
-  4: 'VERY GOOD',
-  5: 'EXCELLENT',
-};
-
 interface HREvaluationFormUIProps {
   agent:    Agent;
   onBack:   () => void;
@@ -44,82 +36,108 @@ export const HREvaluationFormUI = ({ agent, onBack, onSubmit }: HREvaluationForm
     setScores((prev) => ({ ...prev, [key]: value }));
   };
 
-  const allScored    = CRITERIA.every((c) => scores[c.key] !== undefined);
-  const totalScored  = Object.keys(scores).length;
-  const averageScore = allScored
-    ? (Object.values(scores).reduce((a, b) => a + b, 0) / CRITERIA.length)
-    : 0;
+  // --- SCORE CALCULATIONS ---
+  const totalScored = Object.keys(scores).length;
+  const allScored   = totalScored === CRITERIA.length;
+  
+  const { displayScore, rawAverage } = useMemo(() => {
+    if (totalScored === 0) return { displayScore: "0.00", rawAverage: 0 };
+    
+    const sum = Object.values(scores).reduce((a, b) => a + b, 0);
+    const avg = sum / CRITERIA.length;
+    
+    // Scale to 15.00 (Total Sum / Max possible Sum * 15)
+    // (sum / (CRITERIA.length * 5)) * 15
+    const scaled = (sum / (CRITERIA.length * 5)) * 15;
+    
+    return {
+      displayScore: scaled.toFixed(2),
+      rawAverage: avg
+    };
+  }, [scores]);
 
   const handleSubmit = () => {
-    if (!allScored || comment.trim().length < 5) return;
-    onSubmit(parseFloat(averageScore.toFixed(2)), comment);
+    if (!allScored || comment.trim().length < 10) return;
+    // Sending the 1-5 raw average to DB for consistency, 
+    // while the UI shows the 15.00 weighted result.
+    onSubmit(parseFloat(rawAverage.toFixed(2)), comment.toUpperCase());
   };
 
   return (
-    <section className="flex-1 overflow-y-auto bg-[#020617] font-sans">
+    <section className="flex-1 overflow-y-auto bg-[#020617] font-sans scrollbar-hide uppercase">
       {/* ── STICKY HEADER ─────────────────────────────────────────── */}
-      <div className="sticky top-0 z-10 bg-[#020617]/95 backdrop-blur-md border-b border-white/5 px-12 py-8 flex items-center justify-between">
+      <div className="sticky top-0 z-50 bg-[#020617]/95 backdrop-blur-md border-b border-white/5 px-12 py-8 flex items-center justify-between">
         <div>
           <button
             onClick={onBack}
-            className="flex items-center gap-2 text-[10px] font-black text-indigo-500 hover:underline tracking-widest mb-2"
+            className="flex items-center gap-2 text-[10px] font-black text-indigo-500 hover:text-indigo-400 tracking-[0.3em] mb-2 transition-all"
           >
-            <ArrowLeft className="w-3 h-3" /> ABORT EVALUATION
+            <ArrowLeft className="w-3 h-3" /> ABORT AUDIT
           </button>
-          <h1 className="text-3xl font-black text-white tracking-tighter uppercase italic">
-            HR <span className="text-indigo-600">AUDIT</span> SCORECARD
+          <h1 className="text-3xl font-black text-white tracking-tighter italic">
+            HR <span className="text-indigo-600">PERFORMANCE</span> AUDIT
           </h1>
-          <p className="text-[10px] font-bold text-slate-500 tracking-[0.3em] mt-1 uppercase">
-            PERSONNEL: {agent.name} &nbsp;·&nbsp; ID: {agent.id} &nbsp;·&nbsp; {agent.role}
+          <p className="text-[10px] font-bold text-slate-500 tracking-[0.3em] mt-1">
+            SUBJECT: {agent.name} <span className="mx-2 text-slate-800">|</span> ID: {agent.id}
           </p>
         </div>
 
-        <div className="bg-white/5 border border-white/10 px-8 py-4 rounded-[2rem] text-right">
-          <p className="text-[9px] font-black text-slate-500 tracking-widest mb-1">DATA POINTS CAPTURED</p>
-          <p className="text-2xl font-black text-white tracking-tighter">
-            {totalScored}<span className="text-indigo-600">/</span>{CRITERIA.length}
-          </p>
+        <div className="flex items-center gap-6">
+          <div className="bg-white/5 border border-white/10 px-8 py-4 rounded-3xl text-right">
+            <p className="text-[9px] font-black text-slate-500 tracking-widest mb-1">AUDIT PROGRESS</p>
+            <p className="text-2xl font-black text-white italic tracking-tighter">
+              {totalScored}<span className="text-indigo-600">/</span>{CRITERIA.length}
+            </p>
+          </div>
+          
+          <div className="bg-indigo-600/10 border border-indigo-500/20 px-8 py-4 rounded-3xl text-right shadow-2xl shadow-indigo-600/10">
+            <p className="text-[9px] font-black text-indigo-500 tracking-widest mb-1">LIVE SCORE</p>
+            <p className="text-2xl font-black text-white italic tracking-tighter">
+              {displayScore} <span className="text-[10px] text-slate-600">/ 15.00</span>
+            </p>
+          </div>
         </div>
       </div>
 
-      <div className="px-12 py-10 max-w-5xl mx-auto space-y-6">
-        {/* ── CRITERIA CARDS ────────────────────────────────────────── */}
+      <div className="px-12 py-10 max-w-5xl mx-auto space-y-4">
+        {/* ── CRITERIA GRID ────────────────────────────────────────── */}
         {CRITERIA.map((criterion, index) => {
           const selected = scores[criterion.key];
           return (
             <div
               key={criterion.key}
-              className={`border rounded-[2.5rem] p-10 transition-all duration-300 ${
+              className={`group border rounded-[2.5rem] p-8 transition-all duration-500 ${
                 selected
-                  ? 'bg-indigo-600/5 border-indigo-500/30 shadow-[0_0_40px_rgba(79,70,229,0.05)]'
-                  : 'bg-slate-900/20 border-white/5'
+                  ? 'bg-indigo-600/5 border-indigo-500/30 shadow-[0_0_50px_rgba(79,70,229,0.03)]'
+                  : 'bg-slate-900/20 border-white/5 opacity-80 hover:opacity-100'
               }`}
             >
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
                 <div className="flex items-start gap-6 flex-1">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xs border ${
-                    selected ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-900 border-white/10 text-slate-600'
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xs border transition-all duration-500 ${
+                    selected ? 'bg-indigo-600 border-indigo-400 text-white rotate-6' : 'bg-slate-900 border-white/10 text-slate-600 group-hover:border-slate-700'
                   }`}>
                     {String(index + 1).padStart(2, '0')}
                   </div>
                   <div>
-                    <p className="text-lg font-black text-white tracking-tight uppercase italic mb-1">
+                    <p className="text-lg font-black text-white tracking-tight italic mb-1">
                       {criterion.label}
                     </p>
-                    <p className="text-[11px] font-bold text-slate-500 tracking-widest leading-relaxed uppercase">
+                    <p className="text-[11px] font-bold text-slate-500 tracking-widest leading-relaxed">
                       {criterion.desc}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex gap-2 bg-black/40 p-2 rounded-[1.5rem] border border-white/5 shrink-0">
+                {/* Rating Input */}
+                <div className="flex gap-2 bg-black/40 p-2 rounded-[1.8rem] border border-white/5 shrink-0">
                   {[1, 2, 3, 4, 5].map((num) => (
                     <button
                       key={num}
                       onClick={() => handleScore(criterion.key, num)}
-                      className={`w-14 h-14 rounded-xl flex items-center justify-center font-black text-sm transition-all active:scale-90 ${
+                      className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-sm transition-all active:scale-90 ${
                         selected === num
-                          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/40'
+                          ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/40'
                           : 'text-slate-600 hover:bg-white/5 hover:text-white'
                       }`}
                     >
@@ -132,51 +150,62 @@ export const HREvaluationFormUI = ({ agent, onBack, onSubmit }: HREvaluationForm
           );
         })}
 
-        {/* ── SUMMARY ─────────────────────────────────── */}
+        {/* ── FINAL AUDIT SUMMARY ──────────────────────────── */}
         {allScored && (
-          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-[3rem] p-10 flex items-center justify-between animate-in zoom-in duration-500 shadow-2xl shadow-emerald-500/5">
-            <div className="flex items-center gap-4 text-emerald-400">
-              <ShieldCheck className="w-8 h-8" />
+          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-[3rem] p-10 flex items-center justify-between animate-in slide-in-from-bottom-4 duration-700 shadow-2xl shadow-emerald-500/5">
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center">
+                <ShieldCheck className="w-8 h-8 text-emerald-400" />
+              </div>
               <div>
-                <span className="text-[10px] font-black tracking-[0.5em] block mb-1">CALCULATED RESULT</span>
-                <span className="text-xs font-bold text-slate-400 tracking-widest uppercase">ALL CRITERIA VALIDATED BY HR</span>
+                <span className="text-[10px] font-black tracking-[0.5em] text-emerald-500 block mb-1">AUDIT VALIDATED</span>
+                <span className="text-xs font-bold text-slate-400 tracking-widest uppercase italic">ALL CRITERIA LOGGED & VERIFIED BY HR</span>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-6xl font-black text-white tracking-tighter italic">{averageScore.toFixed(2)}</p>
-              <p className="text-[10px] font-black text-emerald-500 tracking-[0.3em]">FINAL RATING / 5.00</p>
+              <p className="text-7xl font-black text-white tracking-tighter italic leading-none">{displayScore}</p>
+              <p className="text-[10px] font-black text-emerald-500 tracking-[0.3em] mt-2">COMPOSITE RESULT / 15.00</p>
             </div>
           </div>
         )}
 
         {/* ── REMARKS ───────────────────────────────────────────────── */}
         <div className="pt-8 space-y-4">
-          <label className="text-[10px] font-black text-indigo-500 tracking-[0.5em] ml-2 uppercase">
-            AUDIT REMARKS & OBSERVATIONS
-          </label>
+          <div className="flex items-center gap-3 ml-2">
+            <Activity className="w-4 h-4 text-indigo-500" />
+            <label className="text-[10px] font-black text-indigo-500 tracking-[0.5em]">
+              QUALITATIVE AUDIT REMARKS
+            </label>
+          </div>
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder="PROVIDE QUALITATIVE JUSTIFICATION FOR THE GIVEN SCORES..."
-            className="w-full h-48 bg-slate-900/40 border border-white/5 rounded-[3rem] p-10 text-white focus:border-indigo-500/50 outline-none transition-all resize-none uppercase text-xs tracking-widest leading-relaxed placeholder:text-slate-800"
+            placeholder="PROVIDE DETAILED JUSTIFICATION FOR THIS SCORECARD..."
+            className="w-full h-48 bg-slate-900/40 border border-white/5 rounded-[3rem] p-10 text-white focus:border-indigo-500/50 outline-none transition-all resize-none text-[11px] font-bold tracking-widest leading-relaxed placeholder:text-slate-800"
           />
+          {comment.length > 0 && comment.length < 10 && (
+            <div className="flex items-center gap-2 text-amber-500/80 ml-4 animate-pulse">
+              <AlertCircle size={12} />
+              <p className="text-[9px] font-black tracking-widest uppercase">MINIMUM 10 CHARACTERS REQUIRED FOR AUDIT LOG</p>
+            </div>
+          )}
         </div>
 
         {/* ── SUBMIT ────────────────────────────────────────────────── */}
         <div className="pb-24">
           <button
             onClick={handleSubmit}
-            disabled={!allScored || comment.trim().length < 5}
-            className={`w-full py-8 rounded-[3rem] font-black text-[11px] tracking-[0.6em] flex items-center justify-center gap-4 transition-all uppercase ${
-              allScored && comment.trim().length >= 5
-                ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xl shadow-indigo-600/30 active:scale-95'
-                : 'bg-slate-900 text-slate-700 cursor-not-allowed grayscale'
+            disabled={!allScored || comment.trim().length < 10}
+            className={`w-full py-8 rounded-[3rem] font-black text-[12px] tracking-[0.6em] flex items-center justify-center gap-4 transition-all duration-500 ${
+              allScored && comment.trim().length >= 10
+                ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xl shadow-indigo-600/30 active:scale-[0.98]'
+                : 'bg-slate-900 text-slate-700 cursor-not-allowed border border-white/5'
             }`}
           >
             <Send className="w-5 h-5" />
             {!allScored
-              ? `COMPLETE ALL FIELDS (${totalScored}/${CRITERIA.length})`
-              : comment.trim().length < 5
+              ? `DATA MISSING (${totalScored}/${CRITERIA.length})`
+              : comment.trim().length < 10
               ? 'REMARKS REQUIRED'
               : 'COMMIT AUDIT TO DATABASE'}
           </button>
