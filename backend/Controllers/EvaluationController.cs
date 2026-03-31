@@ -25,7 +25,7 @@ namespace YourProject.Controllers
             [FromQuery] string department,
             [FromQuery] string excludeId,
             [FromQuery] string viewerRole,
-            [FromQuery] string evaluationType)   // ← was "mode", now matches frontend
+            [FromQuery] string mode)   // ← fixed: was "evaluationType", frontend sends "mode"
         {
             try
             {
@@ -40,14 +40,13 @@ namespace YourProject.Controllers
 
                 if (isHR)
                 {
-                    if (evaluationType == "evaluate")
+                    if (mode == "evaluate")
                         query = query.Where(u => u.Role.ToUpper() == "MANAGER");
-                    else if (evaluationType == "results" && !string.IsNullOrEmpty(deptUpper))
+                    else if (mode == "results" && !string.IsNullOrEmpty(deptUpper))
                         query = query.Where(u => u.Department.ToUpper() == deptUpper);
                 }
                 else
                 {
-                    // ← null/empty guard so empty department doesn't crash
                     if (!string.IsNullOrEmpty(deptUpper))
                         query = query.Where(u => u.Department.ToUpper() == deptUpper);
                 }

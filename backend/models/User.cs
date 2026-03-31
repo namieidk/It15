@@ -33,6 +33,11 @@ namespace YourProject.Models
         public string? SssId { get; set; }
         public string? PhilHealthId { get; set; }
         public string? PagIbigId { get; set; }
+        
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        // ── Lockout fields ────────────────────────────────────────────────────
+        public int FailedLoginAttempts { get; set; } = 0;
+        public DateTime? LockoutUntil { get; set; } = null;
     }
 }

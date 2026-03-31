@@ -9,10 +9,6 @@ export default function HRSchedulePage() {
   const [employees, setEmployees] = useState<EmployeeSchedule[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  /**
-   * Fetches the employee roster from the backend.
-   * This includes User basic info, ProfileImage, and current Schedule details.
-   */
   const fetchRoster = useCallback(async () => {
     try {
       setIsLoading(true);

@@ -1,50 +1,70 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { jwtVerify } from 'jose';
 
+// ─── Role → allowed route prefixes ───────────────────────────────────────────
 const ROLE_ROUTES: Record<string, string[]> = {
   Applicants: ['/welcome', '/apply'],
   ADMIN: [
-    '/adminDashboard', '/adminMessage', '/adminReports', 
-    '/adminSettings', '/Auditlogs', '/ManageAcc'
+    '/adminDashboard', '/adminMessage', '/adminReports',
+    '/adminSettings', '/Auditlogs', '/ManageAcc',
   ],
   MANAGER: [
     '/managerDashboard', '/managerAttendance', '/managerEvaluation',
-    '/managerMessage', '/managerProfile', '/managerReports', '/Approvals'
+    '/managerMessage', '/managerProfile', '/managerReports', '/Approvals',
   ],
   HR: [
     '/hrDashboard', '/hrAttendance', '/hrSchedule', '/hrApproval', '/hrEvaluate',
-    '/hrMessage', '/hrPayroll', '/hrReports', '/Applicants'
+    '/hrMessage', '/hrPayroll', '/hrReports', '/Applicants',
   ],
   EMPLOYEE: [
     '/Dashboard', '/Attendance', '/Evaluation', '/LeaveReq',
-    '/Message', '/Payroll', '/Profile', '/Reports'
+    '/Message', '/Payroll', '/Profile', '/Reports',
   ],
 };
 
 const PUBLIC_ROUTES = ['/login', '/signup'];
 
-export function middleware(request: NextRequest) {
+// ─── JWT secret — must match appsettings.json Jwt:Key ────────────────────────
+// In Next.js, server-only env vars (no NEXT_PUBLIC_ prefix) are safe here.
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET ?? ''
+);
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow public routes
-  if (PUBLIC_ROUTES.some(route => pathname.startsWith(route))) {
+  // Allow public routes without a token
+  if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route))) {
     return NextResponse.next();
   }
 
-  const session = request.cookies.get('session')?.value;
+  const token = request.cookies.get('jwt')?.value;
 
-  if (!session) {
+  if (!token) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
   try {
-    const { role } = JSON.parse(session);
-    const upperRole = role?.toUpperCase();
-    const myRoutes = ROLE_ROUTES[upperRole] ?? [];
+    // Cryptographically verify the JWT signature and expiry
+    const { payload } = await jwtVerify(token, JWT_SECRET, {
+      issuer:   'AxiomHRMS',
+      audience: 'AxiomHRMSUsers',
+    });
 
+    // Extract role from the verified payload
+    // The C# ClaimTypes.Role maps to the standard "role" claim in jose
+    const role =
+      (payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] as string)?.toUpperCase() ??
+      (payload['role'] as string)?.toUpperCase() ??
+      '';
+
+    const myRoutes = ROLE_ROUTES[role] ?? [];
+
+    // Block access to routes belonging to OTHER roles
     const isForbidden = Object.entries(ROLE_ROUTES)
-      .filter(([r]) => r !== upperRole)
-      .some(([, routes]) => routes.some(route => pathname.startsWith(route)));
+      .filter(([r]) => r !== role)
+      .some(([, routes]) => routes.some((route) => pathname.startsWith(route)));
 
     if (isForbidden) {
       const home = myRoutes[0] ?? '/login';
@@ -53,7 +73,11 @@ export function middleware(request: NextRequest) {
 
     return NextResponse.next();
   } catch {
-    return NextResponse.redirect(new URL('/login', request.url));
+    // Token is invalid, expired, or tampered with — send to login
+    const response = NextResponse.redirect(new URL('/login', request.url));
+    // Clear the bad cookie
+    response.cookies.delete('jwt');
+    return response;
   }
 }
 

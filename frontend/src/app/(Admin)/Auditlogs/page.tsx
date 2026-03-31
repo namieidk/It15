@@ -2,14 +2,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { AdminSidebar } from '../../../components/(Admin)/Sidebar';
-import { ActivityLogTable } from '../../../components/(Admin)/(Auditlogs)/ActivityLogTable';
-import { LoginLogTable } from '../../../components/(Admin)/(Auditlogs)/LoginLogTable';
+import { ActivityLogTable, ActivityLog } from '../../../components/(Admin)/(Auditlogs)/ActivityLogTable';
+import { LoginLogTable, LoginLog } from '../../../components/(Admin)/(Auditlogs)/LoginLogTable';
 import {
   History, Loader2, Database, Cpu, ShieldAlert,
-  RefreshCw, Filter
+  RefreshCw, Filter,
 } from 'lucide-react';
 
-// ── Module filter options ──────────────────────────────────────────────────
 const MODULES = ['ALL', 'LEAVE', 'REPORTS', 'EVALUATIONS', 'PAYROLL', 'ATTENDANCE', 'ACCOUNTS'];
 
 const MODULE_COLORS: Record<string, string> = {
@@ -24,32 +23,36 @@ const MODULE_COLORS: Record<string, string> = {
 
 const PAGE_LIMIT = 50;
 
+async function apiFetch(url: string): Promise<Response> {
+  return fetch(url, { credentials: 'include' });
+}
+
 export default function AuditLogsPage() {
   const [mode, setMode]                 = useState<'activities' | 'logins'>('activities');
-  const [loginLogs, setLoginLogs]       = useState([]);
-  const [activityLogs, setActivityLogs] = useState([]);
-  const [total, setTotal]               = useState(0);
-  const [page, setPage]                 = useState(1);
-  const [loading, setLoading]           = useState(false);
-  const [moduleFilter, setModuleFilter] = useState('ALL');
-  // ✅ null on first render (SSR) — only set to a Date after mount on the client
+  // ── Fixed: explicit generic types prevent TypeScript from inferring never[] ─
+  const [loginLogs, setLoginLogs]       = useState<LoginLog[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [total, setTotal]               = useState<number>(0);
+  const [page, setPage]                 = useState<number>(1);
+  const [loading, setLoading]           = useState<boolean>(false);
+  const [moduleFilter, setModuleFilter] = useState<string>('ALL');
   const [lastRefresh, setLastRefresh]   = useState<Date | null>(null);
 
-  // ── Fetch activity logs ──────────────────────────────────────────────────
   const fetchActivityLogs = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const token    = localStorage.getItem('token');
       const modParam = moduleFilter === 'ALL' ? '' : `&module=${moduleFilter}`;
-      const res      = await fetch(
-        `http://localhost:5076/api/Admin/activity-logs?page=${page}&limit=${PAGE_LIMIT}${modParam}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+      const res = await apiFetch(
+        `http://localhost:5076/api/Admin/activity-logs?page=${page}&limit=${PAGE_LIMIT}${modParam}`
       );
+
       if (res.ok) {
         const data = await res.json();
-        setActivityLogs(data.logs);
-        setTotal(data.total);
+        setActivityLogs(data.logs  ?? []);
+        setTotal(data.total ?? 0);
         setLastRefresh(new Date());
+      } else if (res.status === 401 || res.status === 403) {
+        window.location.href = '/login';
       }
     } catch (err) {
       console.error('Activity log fetch error:', err);
@@ -58,17 +61,17 @@ export default function AuditLogsPage() {
     }
   }, [page, moduleFilter]);
 
-  // ── Fetch login logs ───────────────────────────────────────────────────
   const fetchLoginLogs = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const res   = await fetch('http://localhost:5076/api/admin/login-logs', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await apiFetch('http://localhost:5076/api/Admin/login-logs');
+
       if (res.ok) {
-        setLoginLogs(await res.json());
+        const data = await res.json();
+        setLoginLogs(Array.isArray(data) ? data : []);
         setLastRefresh(new Date());
+      } else if (res.status === 401 || res.status === 403) {
+        window.location.href = '/login';
       }
     } catch (err) {
       console.error('Login log fetch error:', err);
@@ -77,22 +80,19 @@ export default function AuditLogsPage() {
     }
   }, []);
 
-  // ── On mode / filter / page change ────────────────────────────────────
   useEffect(() => {
     if (mode === 'activities') fetchActivityLogs(false);
     else                       fetchLoginLogs(false);
   }, [mode, page, moduleFilter]);
 
-  // ── Auto-refresh every 15s ────────────────────────────────────────────
   useEffect(() => {
     const interval = setInterval(() => {
       if (mode === 'activities') fetchActivityLogs(true);
       else                       fetchLoginLogs(true);
-    }, 15000);
+    }, 15_000);
     return () => clearInterval(interval);
   }, [mode, fetchActivityLogs, fetchLoginLogs]);
 
-  // ── Reset page when filter changes ────────────────────────────────────
   const handleModuleChange = (mod: string) => {
     setModuleFilter(mod);
     setPage(1);
@@ -119,7 +119,6 @@ export default function AuditLogsPage() {
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Manual refresh */}
             <button
               onClick={() => mode === 'activities' ? fetchActivityLogs(false) : fetchLoginLogs(false)}
               className="p-3 bg-white/5 border border-white/5 rounded-xl hover:bg-indigo-500/10 hover:border-indigo-500/30 transition-all group"
@@ -128,12 +127,13 @@ export default function AuditLogsPage() {
               <RefreshCw className="w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition-colors" />
             </button>
 
-            {/* Mode toggle */}
             <div className="flex bg-white/5 p-1.5 rounded-2xl border border-white/5 gap-2">
               <button
                 onClick={() => { setMode('activities'); setPage(1); }}
                 className={`px-8 py-3 rounded-xl text-[10px] font-black tracking-widest transition-all ${
-                  mode === 'activities' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/20' : 'text-slate-500 hover:text-white'
+                  mode === 'activities'
+                    ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/20'
+                    : 'text-slate-500 hover:text-white'
                 }`}
               >
                 ACTIVITIES
@@ -141,7 +141,9 @@ export default function AuditLogsPage() {
               <button
                 onClick={() => { setMode('logins'); setPage(1); }}
                 className={`px-8 py-3 rounded-xl text-[10px] font-black tracking-widest transition-all ${
-                  mode === 'logins' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/20' : 'text-slate-500 hover:text-white'
+                  mode === 'logins'
+                    ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/20'
+                    : 'text-slate-500 hover:text-white'
                 }`}
               >
                 LOGINS
@@ -204,8 +206,6 @@ export default function AuditLogsPage() {
               <Database className="w-3 h-3 text-indigo-500" />
               <span className="text-[8px] font-black text-slate-500 tracking-widest">VAULT: ACTIVE</span>
             </div>
-
-            {/* ✅ Only render the time after mount — prevents SSR/client mismatch */}
             <span className="text-[8px] font-black text-slate-700 tracking-widest not-italic">
               {lastRefresh
                 ? `LAST SYNC: ${lastRefresh.toLocaleTimeString('en-PH', {
