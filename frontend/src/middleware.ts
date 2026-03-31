@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const ROLE_ROUTES: Record<string, string[]> = {
+  Applicants: ['/welcome', '/apply'],
   ADMIN: [
     '/adminDashboard', '/adminMessage', '/adminReports', 
     '/adminSettings', '/Auditlogs', '/ManageAcc'

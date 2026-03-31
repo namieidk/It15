@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using YourProject.Data;
 using YourProject.Hubs;
+
 using YourProject.Middleware;
 using IO.Ably; // Add this
 
@@ -45,6 +46,7 @@ app.UseCors("AllowNextJS");
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAuditLogging();
+app.UseStaticFiles();
 
 app.MapControllers();
 app.MapHub<AttendanceHub>("/hubs/attendance");

@@ -17,168 +17,34 @@ namespace YourProject.Controllers
             _context = context;
         }
 
-        // ─── 1. SYSTEM SETTINGS (GET) ─────────────────────────────────────────
-        [HttpGet("syssetting")]
-        public async Task<IActionResult> GetSettings()
+        // ─── 1. FETCH APPROVED APPLICANTS (For Provisioning Dropdown) ──────────
+        [HttpGet("approved-applicants")]
+        public async Task<IActionResult> GetApprovedApplicants()
         {
             try
             {
-                var settings = await _context.SystemSettings.FirstOrDefaultAsync();
-
-                if (settings == null)
-                {
-                    settings = new SystemSettings
-                    {
-                        SessionTimeout = 30,
-                        PasswordExpiry = 90,
-                        MfaRequired    = true,
-                        AlertCritical  = true,
-                        AlertLogins    = false,
-                        AlertExports   = true,
-                        StorageUsage   = 84
-                    };
-                    _context.SystemSettings.Add(settings);
-                    await _context.SaveChangesAsync();
-                }
-
-                return Ok(settings);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new {
-                    message = "DATABASE_SYNC_ERROR",
-                    details = ex.InnerException?.Message ?? ex.Message
-                });
-            }
-        }
-
-        // ─── 2. SYSTEM SETTINGS (UPDATE) ──────────────────────────────────────
-        [HttpPut("syssetting")]
-        public async Task<IActionResult> UpdateSettings([FromBody] SystemSettings model)
-        {
-            try
-            {
-                var settings = await _context.SystemSettings.FirstOrDefaultAsync();
-                if (settings == null) return NotFound(new { message = "SETTINGS_NOT_FOUND" });
-
-                settings.SessionTimeout = model.SessionTimeout;
-                settings.PasswordExpiry = model.PasswordExpiry;
-                settings.MfaRequired    = model.MfaRequired;
-                settings.AlertCritical  = model.AlertCritical;
-                settings.AlertLogins    = model.AlertLogins;
-                settings.AlertExports   = model.AlertExports;
-                settings.StorageUsage   = model.StorageUsage;
-
-                await _context.SaveChangesAsync();
-                return Ok(settings);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "UPDATE_FAILURE", details = ex.Message });
-            }
-        }
-
-        // ─── 3. FETCH ALL ACCOUNTS ────────────────────────────────────────────
-        [HttpGet("accounts")]
-        public async Task<IActionResult> GetAllAccounts()
-        {
-            var users = await _context.Users
-                .Select(u => new {
-                    id         = u.Id,
-                    name       = u.Name,
-                    employeeId = u.EmployeeId,
-                    role       = u.Role,
-                    department = u.Department,
-                    status     = u.Status ?? "ACTIVE"
-                })
-                .ToListAsync();
-
-            return Ok(users);
-        }
-
-        // ─── 4. FETCH LOGIN AUDIT LOGS ────────────────────────────────────────
-        [HttpGet("login-logs")]
-        public async Task<IActionResult> GetLoginLogs()
-        {
-            try
-            {
-                var logs = await _context.LoginLogs
-                    .Select(log => new {
-                        log.Id,
-                        log.EmployeeId,
-                        log.IpAddress,
-                        log.Status,
-                        log.Timestamp,
-                        UserDetail = _context.Users
-                            .Where(u => u.EmployeeId == log.EmployeeId)
-                            .Select(u => new { u.Name, u.Role })
-                            .FirstOrDefault()
+                // Fetches only those cleared by HR but not yet given an account
+                var approved = await _context.Applicants
+                    .Where(a => a.Status == "APPROVED")
+                    .Select(a => new {
+                        id = a.Id,
+                        fullName = (a.FirstName + " " + a.LastName).ToUpper(),
+                        email = a.Email,
+                        department = a.Department,
+                        jobTitle = a.JobTitle
                     })
-                    .OrderByDescending(l => l.Timestamp)
+                    .OrderBy(a => a.fullName)
                     .ToListAsync();
 
-                var result = logs.Select(l => new {
-                    id        = l.Id,
-                    user      = l.UserDetail?.Name ?? $"UNKNOWN [{l.EmployeeId}]",
-                    role      = l.UserDetail?.Role ?? "UNAUTHORIZED_ACTOR",
-                    ipAddress = l.IpAddress == "::1" ? "127.0.0.1" : l.IpAddress,
-                    status    = l.Status?.ToUpper() ?? "FAILED",
-                    timestamp = l.Timestamp.ToString("yyyy-MM-dd HH:mm:ss"),
-                    device    = "AXIOM_CORE_V2"
-                });
-
-                return Ok(result);
+                return Ok(approved);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "KERNEL_LOG_FETCH_FAILURE", details = ex.Message });
+                return StatusCode(500, new { message = "FETCH_ERROR", details = ex.Message });
             }
         }
 
-        // ─── 5. FETCH ACTIVITY AUDIT LOGS ─────────────────────────────────────
-        // GET /api/admin/activity-logs?module=LEAVE&page=1&limit=50
-        [HttpGet("activity-logs")]
-        public async Task<IActionResult> GetActivityLogs(
-            [FromQuery] string? module = null,
-            [FromQuery] int     page   = 1,
-            [FromQuery] int     limit  = 50)
-        {
-            try
-            {
-                var query = _context.AuditLogs.AsQueryable();
-
-                if (!string.IsNullOrEmpty(module))
-                    query = query.Where(l => l.Module == module.ToUpper());
-
-                var total = await query.CountAsync();
-
-                var logs = await query
-                    .OrderByDescending(l => l.Timestamp)
-                    .Skip((page - 1) * limit)
-                    .Take(limit)
-                    .Select(l => new
-                    {
-                        id        = l.Id.ToString(),
-                        user      = l.ActorName,
-                        role      = l.ActorRole,
-                        dept      = l.ActorDepartment,
-                        action    = l.Action,
-                        module    = l.Module,
-                        target    = l.Target,
-                        ipAddress = l.IpAddress,
-                        timestamp = l.Timestamp.ToString("yyyy-MM-dd HH:mm:ss"),
-                    })
-                    .ToListAsync();
-
-                return Ok(new { total, page, limit, logs });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "ACTIVITY_LOG_FETCH_FAILURE", details = ex.Message });
-            }
-        }
-
-        // ─── 6. PROVISION ACCOUNT ─────────────────────────────────────────────
+        // ─── 2. PROVISION ACCOUNT ─────────────────────────────────────────────
         [HttpPost("provision")]
         public async Task<IActionResult> ProvisionAccount([FromBody] UserRegistrationDto model)
         {
@@ -186,82 +52,161 @@ namespace YourProject.Controllers
                 return BadRequest(new { message = "ALL FIELDS ARE REQUIRED." });
 
             var cleanId = model.EmployeeId.Trim().ToUpper();
+            var cleanName = model.Name.Trim().ToUpper();
 
+            // Check if Employee ID is already taken in the Users table
             if (await _context.Users.AnyAsync(u => u.EmployeeId == cleanId))
-                return BadRequest(new { message = "EMPLOYEE ID ALREADY REGISTERED." });
+                return BadRequest(new { message = "EMPLOYEE ID ALREADY REGISTERED IN SYSTEM." });
 
-            var user = new User {
-                Name         = model.Name.Trim().ToUpper(),
-                EmployeeId   = cleanId,
-                Role         = model.Role.Trim().ToUpper(),
-                Department   = model.Department.Trim().ToUpper(),
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(model.Password),
-                Status       = "ACTIVE",
-                CreatedAt    = DateTime.UtcNow
-            };
+            // Start Transaction: Ensure both User Creation and Applicant Update succeed together
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try 
+            {
+                // Create the System User
+                var user = new User {
+                    Name         = cleanName,
+                    EmployeeId   = cleanId,
+                    Role         = model.Role.Trim().ToUpper(),
+                    Department   = model.Department.Trim().ToUpper(),
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(model.Password),
+                    Status       = "ACTIVE",
+                    CreatedAt    = DateTime.UtcNow
+                };
 
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
-            return Ok(new { message = "PROVISIONED" });
+                _context.Users.Add(user);
+
+                // Find the corresponding applicant and update their status
+                // Matches based on the Full Name selected from the dropdown
+                var applicant = await _context.Applicants
+                    .FirstOrDefaultAsync(a => (a.FirstName + " " + a.LastName).ToUpper() == cleanName 
+                                         && a.Status == "APPROVED");
+                
+                if (applicant != null)
+                {
+                    applicant.Status = "ACCOUNT_CREATED";
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return Ok(new { message = "PROVISIONED" });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return StatusCode(500, new { message = "KERNEL_PROVISIONING_FAILURE", details = ex.Message });
+            }
         }
 
-        // ─── 7. UPDATE ACCOUNT ────────────────────────────────────────────────
+        // ─── 3. SYSTEM SETTINGS (GET) ─────────────────────────────────────────
+        [HttpGet("syssetting")]
+        public async Task<IActionResult> GetSettings()
+        {
+            try
+            {
+                var settings = await _context.SystemSettings.FirstOrDefaultAsync();
+                if (settings == null)
+                {
+                    settings = new SystemSettings { SessionTimeout = 30, PasswordExpiry = 90, StorageUsage = 84 };
+                    _context.SystemSettings.Add(settings);
+                    await _context.SaveChangesAsync();
+                }
+                return Ok(settings);
+            }
+            catch (Exception ex) { return StatusCode(500, new { message = "DB_SYNC_ERROR", details = ex.Message }); }
+        }
+
+        // ─── 4. SYSTEM SETTINGS (UPDATE) ──────────────────────────────────────
+        [HttpPut("syssetting")]
+        public async Task<IActionResult> UpdateSettings([FromBody] SystemSettings model)
+        {
+            var settings = await _context.SystemSettings.FirstOrDefaultAsync();
+            if (settings == null) return NotFound();
+
+            settings.SessionTimeout = model.SessionTimeout;
+            settings.MfaRequired = model.MfaRequired;
+            settings.AlertCritical = model.AlertCritical;
+            // ... update other fields as needed
+            
+            await _context.SaveChangesAsync();
+            return Ok(settings);
+        }
+
+        // ─── 5. FETCH ALL ACCOUNTS ────────────────────────────────────────────
+        [HttpGet("accounts")]
+        public async Task<IActionResult> GetAllAccounts()
+        {
+            var users = await _context.Users
+                .Select(u => new {
+                    id = u.Id,
+                    name = u.Name,
+                    employeeId = u.EmployeeId,
+                    role = u.Role,
+                    department = u.Department,
+                    status = u.Status ?? "ACTIVE"
+                }).ToListAsync();
+            return Ok(users);
+        }
+
+        // ─── 6. LOGIN AUDIT LOGS ──────────────────────────────────────────────
+        [HttpGet("login-logs")]
+        public async Task<IActionResult> GetLoginLogs()
+        {
+            var logs = await _context.LoginLogs
+                .OrderByDescending(l => l.Timestamp)
+                .Take(100)
+                .ToListAsync();
+            return Ok(logs);
+        }
+
+        // ─── 7. UPDATE / REVOKE / REACTIVATE ──────────────────────────────────
         [HttpPut("update-account/{id}")]
         public async Task<IActionResult> UpdateAccount(int id, [FromBody] UpdateAccountDto model)
         {
             var user = await _context.Users.FindAsync(id);
-            if (user == null) return NotFound(new { message = "ACCOUNT NOT FOUND." });
-
-            user.Name       = model.Name.Trim().ToUpper();
-            user.EmployeeId = model.EmployeeId.Trim().ToUpper();
-            user.Role       = model.Role.Trim().ToUpper();
-            user.Department = model.Department.Trim().ToUpper();
-
+            if (user == null) return NotFound();
+            user.Name = model.Name.ToUpper();
+            user.Role = model.Role.ToUpper();
             await _context.SaveChangesAsync();
             return Ok(new { message = "UPDATED" });
         }
 
-        // ─── 8. REVOKE ACCESS ─────────────────────────────────────────────────
         [HttpPut("revoke-account/{id}")]
         public async Task<IActionResult> RevokeAccount(int id)
         {
             var user = await _context.Users.FindAsync(id);
-            if (user == null) return NotFound(new { message = "USER NOT FOUND" });
-
+            if (user == null) return NotFound();
             user.Status = "INACTIVE";
             await _context.SaveChangesAsync();
-            return Ok(new { message = "ACCESS REVOKED" });
+            return Ok(new { message = "REVOKED" });
         }
 
-        // ─── 9. REACTIVATE ACCESS ─────────────────────────────────────────────
         [HttpPut("reactivate-account/{id}")]
         public async Task<IActionResult> ReactivateAccount(int id)
         {
             var user = await _context.Users.FindAsync(id);
-            if (user == null) return NotFound(new { message = "USER NOT FOUND" });
-
+            if (user == null) return NotFound();
             user.Status = "ACTIVE";
             await _context.SaveChangesAsync();
-            return Ok(new { message = "ACCESS RESTORED" });
+            return Ok(new { message = "RESTORED" });
         }
     }
 
     // ─── DTOs ─────────────────────────────────────────────────────────────────
-
     public class UserRegistrationDto
     {
-        public string Name       { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
         public string EmployeeId { get; set; } = string.Empty;
-        public string Role       { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
         public string Department { get; set; } = string.Empty;
-        public string Password   { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
     }
 
     public class UpdateAccountDto
     {
-        public string Name       { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
         public string EmployeeId { get; set; } = string.Empty;
-        public string Role       { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
         public string Department { get; set; } = string.Empty;
     }
 }

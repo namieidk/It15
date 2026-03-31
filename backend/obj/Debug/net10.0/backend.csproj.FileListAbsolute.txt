@@ -161,3 +161,4 @@
 /Users/donna2005/Documents/It15/backend/bin/Debug/net10.0/IO.Ably.DeltaCodec.dll
 /Users/donna2005/Documents/It15/backend/bin/Debug/net10.0/IO.Ably.dll
 /Users/donna2005/Documents/It15/backend/bin/Debug/net10.0/Newtonsoft.Json.dll
+/Users/donna2005/Documents/It15/backend/bin/Debug/net10.0/backend.staticwebassets.runtime.json

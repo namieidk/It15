@@ -219,7 +219,7 @@ export const PerformanceFeed = () => {
       {/* ── FOOTER CTA ── */}
       {!isLoading && reports.length > 0 && (
         <button
-          onClick={() => router.push('/Employee/Reports')}
+          onClick={() => router.push('/Reports')}
           className="mt-6 w-full py-3 rounded-2xl border border-white/5 text-[8px] text-slate-600 font-black tracking-[0.3em] hover:border-indigo-500/30 hover:text-indigo-400 transition-all relative z-10"
         >
           VIEW FULL REPORT HISTORY →
