@@ -13,10 +13,10 @@ namespace YourProject.Controllers
     [ApiController]
     public class AttendanceController : ControllerBase
     {
-        private readonly ApplicationDbContext      _context;
+        private readonly ApplicationDbContext _context;
         private readonly IHubContext<AttendanceHub> _hub;
-        private readonly ReportService             _reports;
-        private readonly TimeZoneInfo              _phZone =
+        private readonly ReportService _reports;
+        private readonly TimeZoneInfo _phZone =
             TimeZoneInfo.FindSystemTimeZoneById("Singapore Standard Time");
 
         public AttendanceController(
@@ -25,8 +25,41 @@ namespace YourProject.Controllers
             ReportService reports)
         {
             _context = context;
-            _hub     = hub;
+            _hub = hub;
             _reports = reports;
+        }
+
+        // --- NEW: WEEKLY SUMMARY ENDPOINT (Fixes 404 Error) ---
+        [HttpGet("weekly-summary/{employeeId}")]
+        public async Task<IActionResult> GetWeeklySummary(string employeeId)
+        {
+            try
+            {
+                DateTime phNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _phZone);
+                
+                // Calculate start of current week (Monday)
+                int diff = (7 + (phNow.Date.DayOfWeek - DayOfWeek.Monday)) % 7;
+                DateTime startOfWeek = phNow.Date.AddDays(-1 * diff);
+                DateTime endOfWeek = startOfWeek.AddDays(7);
+
+                var weeklyRecords = await _context.Attendance
+                    .Where(a => a.EmployeeId == employeeId && 
+                                a.ClockInTime >= startOfWeek && 
+                                a.ClockInTime < endOfWeek)
+                    .ToListAsync();
+
+                return Ok(new
+                {
+                    employeeId = employeeId,
+                    totalRegular = Math.Round(weeklyRecords.Sum(r => r.RegularHours), 2),
+                    totalOT = Math.Round(weeklyRecords.Sum(r => r.OvertimeHours), 2),
+                    daysWorked = weeklyRecords.Count
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "ERROR CALCULATING WEEKLY STATS", error = ex.Message });
+            }
         }
 
         [HttpGet("all")]
@@ -60,37 +93,6 @@ namespace YourProject.Controllers
             }
         }
 
-        [HttpGet("department/{department}")]
-        public async Task<IActionResult> GetDepartmentAttendance(string department)
-        {
-            try
-            {
-                DateTime phNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _phZone);
-                DateTime today = phNow.Date;
-
-                var records = await _context.Attendance
-                    .Where(a => a.Department == department && a.ClockInTime >= today)
-                    .OrderByDescending(a => a.ClockInTime)
-                    .ToListAsync();
-
-                var uiData = records.Select(r => new {
-                    id     = r.EmployeeId,
-                    name   = r.Name?.ToUpper()       ?? "UNKNOWN",
-                    dept   = r.Department?.ToUpper() ?? "N/A",
-                    shift  = "SCHEDULED",
-                    login  = r.ClockInTime.HasValue ? r.ClockInTime.Value.ToString("HH:mm") : "--:--",
-                    status = r.Status?.ToUpper()     ?? "PRESENT",
-                    health = r.Status == "LATE" ? "WARNING" : "GOOD"
-                });
-
-                return Ok(uiData);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "Error fetching department logs", error = ex.Message });
-            }
-        }
-
         [HttpPost("clockin")]
         public async Task<IActionResult> ClockIn([FromBody] Attendance model)
         {
@@ -107,12 +109,10 @@ namespace YourProject.Controllers
                 if (user == null || schedule == null)
                     return BadRequest(new { message = "User Profile or Schedule not found." });
 
-                // --- FIX: EARLY CLOCK-IN RESTRICTION ---
+                // Early Clock-in Restriction (30 mins)
                 TimeSpan buffer = TimeSpan.FromMinutes(30);
                 TimeSpan earliestAllowed = schedule.ShiftStart.Subtract(buffer);
 
-                // Logic to handle if user is too early
-                // We check if the current time is before the shift and also before the 30-min buffer
                 if (currentTime < schedule.ShiftStart && currentTime < earliestAllowed)
                 {
                     return BadRequest(new { 
@@ -142,19 +142,7 @@ namespace YourProject.Controllers
                 await _hub.Clients.Group(model.Department ?? "GENERAL").SendAsync("NewClockIn", newRecord);
                 await _hub.Clients.Group("HR_GLOBAL").SendAsync("NewClockIn", newRecord);
 
-                if (model.Status == "LATE")
-                {
-                    var lateAlert = new {
-                        employeeId = model.EmployeeId,
-                        name       = model.Name?.ToUpper(),
-                        time       = phNow.ToString("HH:mm"),
-                        dept       = model.Department?.ToUpper()
-                    };
-                    await _hub.Clients.Group(model.Department ?? "GENERAL").SendAsync("LateNotification", lateAlert);
-                    await _hub.Clients.Group("HR_GLOBAL").SendAsync("LateNotification", lateAlert);
-                }
-
-                return Ok(new { message = "Clock In Success", status = model.Status });
+                return Ok(new { message = "CLOCK-IN SUCCESSFUL", status = model.Status });
             }
             catch (Exception ex)
             {
@@ -174,11 +162,12 @@ namespace YourProject.Controllers
                     .FirstOrDefaultAsync();
 
                 if (record == null)
-                    return NotFound(new { message = "No active shift found." });
+                    return NotFound(new { message = "NO ACTIVE SHIFT FOUND." });
 
                 DateTime phNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _phZone);
                 record.ClockOutTime = phNow;
 
+                // Calculation logic (subtracting 1 hour for break)
                 double workHrs = (record.ClockOutTime.Value - record.ClockInTime!.Value).TotalHours - 1;
                 record.TotalHoursWorked = Math.Max(0, Math.Round(workHrs, 2));
                 record.RegularHours     = Math.Min(8, record.TotalHoursWorked);
@@ -186,9 +175,8 @@ namespace YourProject.Controllers
 
                 await _context.SaveChangesAsync();
 
-                var user = await _context.Users
-                    .FirstOrDefaultAsync(u => u.EmployeeId == empId);
-
+                // Trigger Report Service
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.EmployeeId == empId);
                 if (user != null)
                 {
                     await _reports.CreateAttendanceReportAsync(
@@ -200,7 +188,7 @@ namespace YourProject.Controllers
                     );
                 }
 
-                return Ok(new { message = "Clock Out Success" });
+                return Ok(new { message = "CLOCK-OUT SUCCESSFUL" });
             }
             catch (Exception ex)
             {

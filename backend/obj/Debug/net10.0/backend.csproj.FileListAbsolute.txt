@@ -158,3 +158,6 @@
 /Users/donna2005/Documents/It15/backend/obj/Debug/net10.0/backend.pdb
 /Users/donna2005/Documents/It15/backend/obj/Debug/net10.0/backend.genruntimeconfig.cache
 /Users/donna2005/Documents/It15/backend/obj/Debug/net10.0/ref/backend.dll
+/Users/donna2005/Documents/It15/backend/bin/Debug/net10.0/IO.Ably.DeltaCodec.dll
+/Users/donna2005/Documents/It15/backend/bin/Debug/net10.0/IO.Ably.dll
+/Users/donna2005/Documents/It15/backend/bin/Debug/net10.0/Newtonsoft.Json.dll

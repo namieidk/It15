@@ -26,5 +26,6 @@ namespace YourProject.Data
         public DbSet<Report> Reports { get; set; }
         public DbSet<SystemSettings> SystemSettings { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
+        public DbSet<Message> Messages { get; set; }
     }
 }
